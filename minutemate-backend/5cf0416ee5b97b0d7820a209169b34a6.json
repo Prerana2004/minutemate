@@ -1,0 +1,1 @@
+{"text": " Hello everyone, I am Brent.", "segments": [{"id": 0, "seek": 0, "start": 0.0, "end": 4.5600000000000005, "text": " Hello everyone, I am Brent.", "tokens": [50365, 2425, 1518, 11, 286, 669, 31665, 13, 50593], "temperature": 0.0, "avg_logprob": -0.6755733013153076, "compression_ratio": 0.7714285714285715, "no_speech_prob": 5.23054100032283e-10}], "language": "English"}
