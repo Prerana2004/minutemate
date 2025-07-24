@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import React, { useState, useRef } from "react";
+import React, { useState, useEffect, useRef } from 'react';
 
 const Recorder = () => {
   const [recording, setRecording] = useState(false);
