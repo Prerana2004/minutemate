@@ -10,8 +10,6 @@ const { createGoogleDoc } = require("./googleDocsExport");
 const app = express();
 const port = 5000;
 
-const cors = require("cors");
-
 app.use(cors({
   origin: "https://minutemate-lyart.vercel.app", // allow your Vercel frontend
   methods: ["GET", "POST"],
