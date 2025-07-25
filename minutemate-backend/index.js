@@ -14,6 +14,10 @@ app.use(cors());
 app.use(express.json());
 const upload = multer({ dest: "uploads/" });
 
+function normalizeSentenceEnding(line) {
+  return line.replace(/\.*$/, "."); // Replaces all trailing dots with one single `.`
+}
+
 
 app.post("/transcribe-clean", upload.single("file"), (req, res) => {
   const audioPath = req.file.path;
@@ -50,9 +54,16 @@ if (!validMimeTypes.includes(req.file.mimetype)) {
             .replace(/\s{2,}/g, " ")
             .trim();
 
-          const lines = cleanedText.split(/\.\s*/).filter(line => line.trim() !== "");
+          const lines = cleanedText
+          .replace(/([.?!])\s*(?=[A-Z])/g, "$1|")  // insert delimiter after sentence end
+          .split("|")
+          .map(line => line.trim())
+          .filter(line => line.length > 0);
 
-          const titleLine = lines.find(line => /meeting/i.test(line));
+          const titleLine = lines.find(line =>
+            /(welcome|meeting|planning)/i.test(line) && line.toLowerCase().includes("meeting")
+          );
+
           const meetingTitle = titleLine ? titleLine.replace(/^welcome to\s+/i, "").trim() : "Untitled Meeting";
 
 
@@ -62,7 +73,7 @@ if (!validMimeTypes.includes(req.file.mimetype)) {
             year: "numeric"
           });
 
-          const participantMatches = cleanedText.match(/\b(I am|This is)\s+([A-Z][a-z]*)\b/gi);
+          const participantMatches = cleanedText.match(/\b(I am|This is|My name is|[A-Z][a-z]+ here)\b.*?\b([A-Z][a-z]+)\b/gi);
           const participantNames = participantMatches
             ? participantMatches.map(p => p.split(" ").slice(-1)[0]).join(", ")
             : null;
@@ -79,8 +90,9 @@ if (!validMimeTypes.includes(req.file.mimetype)) {
           }).slice(0, 5);
 
           const keyPoints = keyPointsFiltered.length
-            ? keyPointsFiltered.map(line => `• ${line.trim()}.`).join("\n")
-            : "No key points mentioned.";
+          ? keyPointsFiltered.map(line => `• ${normalizeSentenceEnding(line.trim())}`).join("\n")
+          : "No key points mentioned.";
+
 
           const decisionIndicators = [
             "decided", "we will", "we shall", "we plan", "scheduled", "finalized",
@@ -96,8 +108,9 @@ if (!validMimeTypes.includes(req.file.mimetype)) {
           });
 
           const summarizedDecisions = summarizedDecisionsLines.length
-            ? summarizedDecisionsLines.map(line => `• ${line.trim()}.`).join("\n")
+            ? summarizedDecisionsLines.map(line => `• ${normalizeSentenceEnding(line.trim())}`).join("\n")
             : "No clear decisions mentioned.";
+
 
           const actionItemRegex = /\b(will|need to|going to|have to|must|shall|plan to|next step is)\b/i;
           const deadlineRegex = /\b(by|on|before|after)\s+((next\s+)?(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)|\d{1,2}(st|nd|rd|th)?\s+\w+|next week|tomorrow|today|this week|end of day)\b/i;
@@ -106,6 +119,8 @@ if (!validMimeTypes.includes(req.file.mimetype)) {
 
           lines.forEach(line => {
             const lc = line.toLowerCase();
+            if (line.split(" ").length > 30) return; // Skip overly long sentences
+
             if (actionItemRegex.test(lc)) {
               let responsible = "Someone";
 
@@ -121,7 +136,7 @@ if (!validMimeTypes.includes(req.file.mimetype)) {
               const deadlineMatch = line.match(deadlineRegex);
               const deadline = deadlineMatch ? deadlineMatch[0] : null;
 
-              const formatted = `• ${line.trim()} — Responsible: ${responsible}${deadline ? `, Deadline: ${deadline}` : ""}`;
+              const formatted = `• ${normalizeSentenceEnding(line.trim())} — Responsible: ${responsible}${deadline ? `, Deadline: ${deadline}` : ""}`;
               actionItems.push(formatted);
             }
           });
@@ -174,7 +189,7 @@ ${actionItems.length ? actionItems.join("\n") : "No clear action items mentioned
     })
     .on("error", (err) => {
       console.error("❌ FFmpeg Error:", err.message);
-      res.status(500).json({ error: "Audio conversion failed." });
+      return res.status(500).json({ error: "Audio conversion failed." });
     });
 });
 
