@@ -1,0 +1,16 @@
+1
+00:00:00,040 --> 00:00:05,400
+welcome to the monthly planning meeting the deadline for submitting the report
+
+2
+00:00:05,400 --> 00:00:11,580
+is Friday we have decided to launch the project by Sunday it's really urgent and
+
+3
+00:00:11,580 --> 00:00:17,100
+we need to finish it asap Raj will take action on the feedback one important
+
+4
+00:00:17,100 --> 00:00:23,640
+thing let's schedule a follow-up for Wednesday to track this task
+

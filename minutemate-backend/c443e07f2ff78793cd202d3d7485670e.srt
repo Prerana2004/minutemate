@@ -1,0 +1,20 @@
+1
+00:00:00,800 --> 00:00:08,920
+Welcome to the monthly planning meeting. We have completed almost 70% of our project.
+
+2
+00:00:09,360 --> 00:00:16,100
+The deadline for submitting the prototype is Friday. We have decided to launch the project by Sunday.
+
+3
+00:00:16,720 --> 00:00:23,020
+It's really urgent and we need to finish it ASAP. Raj will take action on the feedback.
+
+4
+00:00:23,020 --> 00:00:28,680
+One important thing, let's schedule a follow-up for Wednesday to track this task.
+
+5
+00:00:30,000 --> 00:00:32,000
+Thank you.
+
