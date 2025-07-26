@@ -1,13 +1,13 @@
 import { jsPDF } from "jspdf";
 import { useState, useRef } from 'react';  
 
-
 const Recorder = () => {
   const [recording, setRecording] = useState(false);
   const [audioURL, setAudioURL] = useState(null);
   const [transcription, setTranscription] = useState("");
   const [docLink, setDocLink] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
 
@@ -44,20 +44,26 @@ const Recorder = () => {
   };
 
   const uploadAndTranscribe = async (formData) => {
+    setIsUploading(true);
     try {
-      const response = await fetch("http://minutemate.onrender.com/transcribe-clean",{
+      const response = await fetch("https://minutemate.onrender.com/transcribe-clean", {
         method: "POST",
         body: formData,
       });
 
       const data = await response.json();
-      
 
+      if (!response.ok) {
+        const errorMessage = data?.error || "An unexpected error occurred during transcription.";
+        setTranscription(`❌ ${errorMessage}`);
+        setIsUploading(false);
+        return;
+      }
 
       if (data.text) {
         setTranscription(data.text);
       } else {
-        setTranscription("Transcription failed.");
+        setTranscription("❌ Transcription failed (no text returned).");
       }
 
       if (data.docLink) {
@@ -65,8 +71,9 @@ const Recorder = () => {
       }
     } catch (error) {
       console.error("Error uploading/transcribing:", error);
-      setTranscription("An error occurred during transcription.");
+      setTranscription("❌ Network or server error occurred.");
     }
+    setIsUploading(false);
   };
 
   const downloadAsText = () => {
@@ -103,7 +110,9 @@ const Recorder = () => {
         <div className="mt-4">
           <audio controls src={audioURL}></audio>
           <p className="text-sm text-gray-500 mt-2">
-            {transcription === "Recording complete. Transcribing..."
+            {isUploading
+              ? "🔄 Transcribing..."
+              : transcription === "Recording complete. Transcribing..."
               ? transcription
               : "Recording available."}
           </p>
@@ -125,38 +134,38 @@ const Recorder = () => {
             </button>
 
             {showDropdown && (
-        <div className="origin-top-right absolute left-0 mt-0 w-full rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-20">
-          <div className="py-1 flex flex-col" role="menu" aria-orientation="vertical">
-            <button
-              onClick={downloadAsText}
-              className="px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100 w-full"
-              role="menuitem"
-            >
-              Download as .txt
-            </button>
+              <div className="origin-top-right absolute left-0 mt-0 w-full rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-20">
+                <div className="py-1 flex flex-col" role="menu" aria-orientation="vertical">
+                  <button
+                    onClick={downloadAsText}
+                    className="px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100 w-full"
+                    role="menuitem"
+                  >
+                    Download as .txt
+                  </button>
 
-            <button
-              onClick={downloadAsPDF}
-              className="px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100 w-full"
-              role="menuitem"
-            >
-              Download as PDF
-            </button>
+                  <button
+                    onClick={downloadAsPDF}
+                    className="px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100 w-full"
+                    role="menuitem"
+                  >
+                    Download as PDF
+                  </button>
 
-            {docLink && (
-              <a
-                href={docLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-4 py-2 text-sm text-left text-blue-600 hover:bg-gray-100 w-full block"
-                role="menuitem"
-              >
-                View in Google Docs
-              </a>
+                  {docLink && (
+                    <a
+                      href={docLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 text-sm text-left text-blue-600 hover:bg-gray-100 w-full block"
+                      role="menuitem"
+                    >
+                      View in Google Docs
+                    </a>
+                  )}
+                </div>
+              </div>
             )}
-          </div>
-        </div>
-      )}
           </div>
         </div>
       )}
