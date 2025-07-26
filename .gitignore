@@ -1,5 +1,6 @@
-node_modules/ 
-uploads/ 
-.env 
-token.json 
-credential.json 
+node_modules/
+uploads/
+.env
+token.json
+minutemate-backend/credentials.json
+minutemate-backend/web-client-credentials.json
