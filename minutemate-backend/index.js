@@ -5,6 +5,7 @@ const fs = require("fs");
 const ffmpeg = require("fluent-ffmpeg");
 const axios = require("axios");
 const dotenv = require("dotenv");
+const mime = require("mime-types"); // ✅ Added to detect MIME type
 const { createGoogleDoc } = require("./googleDocsExport");
 
 dotenv.config(); // Load .env
@@ -44,20 +45,25 @@ app.post("/transcribe-clean", upload.single("file"), (req, res) => {
         console.log("✅ Audio converted. Sending to Hugging Face...");
         const audioBuffer = fs.readFileSync(wavPath);
 
-        // Hugging Face Whisper API call with debug logs
+        // ✅ Detect MIME type dynamically
+        const contentType = mime.lookup(wavPath) || "application/octet-stream";
+
+        // ✅ Hugging Face Whisper API call
         let response;
         try {
           response = await axios.post(
-          "https://api-inference.huggingface.co/models/openai/whisper-large-v3",
+            "https://api-inference.huggingface.co/models/openai/whisper-large-v3",
             audioBuffer,
             {
               headers: {
                 Authorization: `Bearer ${process.env.HF_TOKEN}`,
-                "Content-Type": "audio/wav"
+                "Content-Type": contentType,
+                "Accept": "application/json"
               },
               timeout: 300000
             }
           );
+
           console.log("✅ HF API Success:", response.data);
         } catch (err) {
           console.error("❌ HF API Error:", err.response?.data || err.message);
