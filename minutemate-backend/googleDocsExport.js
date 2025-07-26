@@ -2,7 +2,7 @@ const fs = require("fs");
 const { google } = require("googleapis");
 
 async function authorize() {
-  const credentials = JSON.parse(fs.readFileSync("credentials.json"));
+  const credentials = JSON.parse(process.env.GOOGLE_CREDS);
 
   const auth = new google.auth.GoogleAuth({
     credentials,
