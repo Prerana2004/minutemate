@@ -48,7 +48,7 @@ app.post("/transcribe-clean", upload.single("file"), (req, res) => {
         let response;
         try {
           response = await axios.post(
-          "https://api-inference.huggingface.co/models/distil-whisper/distil-large-v3",
+          "https://api-inference.huggingface.co/models/openai/whisper-large-v3",
             audioBuffer,
             {
               headers: {
