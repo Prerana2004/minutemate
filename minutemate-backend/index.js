@@ -13,7 +13,7 @@ const app = express();
 const port = 5000;
 
 app.use(cors({
-  origin: "https://minutemate-lyart.vercel.app", // Replace with your Vercel frontend URL
+  origin: "https://minutemate-lyart.vercel.app",
   methods: ["GET", "POST"],
   credentials: true
 }));
@@ -28,7 +28,7 @@ function normalizeSentenceEnding(line) {
 app.post("/transcribe-clean", upload.single("file"), (req, res) => {
   const audioPath = req.file.path;
 
-  const validMimeTypes = ["audio/webm", "audio/mpeg"];
+  const validMimeTypes = ["audio/webm", "audio/mpeg", "audio/weba"];
   if (!validMimeTypes.includes(req.file.mimetype)) {
     fs.unlinkSync(audioPath);
     return res.status(400).json({ error: "Only .mp3 or .webm audio files are supported." });
@@ -41,19 +41,30 @@ app.post("/transcribe-clean", upload.single("file"), (req, res) => {
     .save(wavPath)
     .on("end", async () => {
       try {
+        console.log("✅ Audio converted. Sending to Hugging Face...");
         const audioBuffer = fs.readFileSync(wavPath);
 
-        const response = await axios.post(
-          "https://api-inference.huggingface.co/models/openai/whisper-large",
-          audioBuffer,
-          {
-            headers: {
-              Authorization: `Bearer ${process.env.HF_TOKEN}`,
-              "Content-Type": "audio/wav"
-            },
-            timeout: 300000
-          }
-        );
+        // Hugging Face Whisper API call with debug logs
+        let response;
+        try {
+          response = await axios.post(
+            "https://api-inference.huggingface.co/models/openai/whisper-large",
+            audioBuffer,
+            {
+              headers: {
+                Authorization: `Bearer ${process.env.HF_TOKEN}`,
+                "Content-Type": "audio/wav"
+              },
+              timeout: 300000
+            }
+          );
+          console.log("✅ HF API Success:", response.data);
+        } catch (err) {
+          console.error("❌ HF API Error:", err.response?.data || err.message);
+          fs.unlinkSync(audioPath);
+          fs.unlinkSync(wavPath);
+          return res.status(500).json({ error: "Transcription failed at Hugging Face." });
+        }
 
         const rawTranscript = response.data.text;
         if (!rawTranscript) throw new Error("Empty response from Whisper API");
