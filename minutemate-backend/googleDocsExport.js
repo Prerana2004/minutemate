@@ -1,3 +1,4 @@
+const fs = require("fs");
 const { google } = require("googleapis");
 
 async function authorize() {
@@ -7,7 +8,7 @@ async function authorize() {
     credentials,
     scopes: [
       "https://www.googleapis.com/auth/documents",
-      "https://www.googleapis.com/auth/drive" // ✅ Required for moving file to folder
+      "https://www.googleapis.com/auth/drive", // Needed for moving file
     ],
   });
 
@@ -16,11 +17,10 @@ async function authorize() {
 
 async function createGoogleDoc(summaryText) {
   const auth = await authorize();
-
   const docs = google.docs({ version: "v1", auth });
   const drive = google.drive({ version: "v3", auth });
 
-  // 1. Create the Google Doc
+  // Step 1: Create the doc
   const document = await docs.documents.create({
     requestBody: {
       title: "MinuteMate Meeting Summary",
@@ -29,14 +29,20 @@ async function createGoogleDoc(summaryText) {
 
   const documentId = document.data.documentId;
 
-  // 2. Move it to the shared folder
-  await drive.files.update({
-    fileId: documentId,
-    addParents: '1_cPi3rK8f-rBFzcaUklDTTiWCOpyRsnJ', // ✅ Your folder ID
-    fields: 'id, parents',
-  });
+  // Step 2: Move it to shared folder
+  console.log("🔁 Moving doc to Drive folder...");
+  try {
+    await drive.files.update({
+      fileId: documentId,
+      addParents: "1_cPi3rK8f-rBFzcaUklDTTiWCOpyRsnJ", // ✅ Your folder ID
+    });
+    console.log("✅ Moved doc to folder");
+  } catch (err) {
+    console.error("❌ Failed to move doc to folder:", err.message);
+    throw err;
+  }
 
-  // 3. Write content to the doc
+  // Step 3: Add content
   await docs.documents.batchUpdate({
     documentId,
     requestBody: {
