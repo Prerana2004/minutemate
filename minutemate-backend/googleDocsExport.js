@@ -59,11 +59,13 @@ async function createGoogleDoc(summaryText) {
 
     // Step 1: Create an empty Google Doc
     const file = await drive.files.create({
-      requestBody: {
-        name: "MinuteMate Meeting Summary",
-        mimeType: "application/vnd.google-apps.document",
-      },
-    });
+  requestBody: {
+    name: "MinuteMate Meeting Summary",
+    mimeType: "application/vnd.google-apps.document",
+    parents: ["1AbCDeFgHiJKlMNopQRsTuvWxYZ"], 
+  },
+});
+
 
     const documentId = file.data.id;
 
