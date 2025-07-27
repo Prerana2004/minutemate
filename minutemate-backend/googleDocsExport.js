@@ -42,11 +42,11 @@ async function createGoogleDoc(summaryText) {
   await listFilesOwnedByServiceAccount(auth);
 
   // Step 1: Create the doc
+  // Do NOT set the parent folder
   const file = await drive.files.create({
     requestBody: {
       name: "MinuteMate Meeting Summary",
       mimeType: "application/vnd.google-apps.document",
-      parents: ["1_cPi3rK8f-rBFzcaUklDTTiWCOpyRsnJ"], // your folder ID
     },
   });
 
