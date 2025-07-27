@@ -1,5 +1,9 @@
+const fs = require("fs");
 const { google } = require("googleapis");
 
+/**
+ * Authorizes the service account using credentials from environment variable.
+ */
 async function authorize() {
   const credentials = JSON.parse(process.env.GOOGLE_CREDS);
 
@@ -14,68 +18,76 @@ async function authorize() {
   return await auth.getClient();
 }
 
-// ✅ List files to debug Drive quota and ownership
+/**
+ * Lists files owned by the service account — helpful to debug storage/quota issues.
+ */
 async function listFilesOwnedByServiceAccount(auth) {
-  const drive = google.drive({ version: "v3", auth });
+  try {
+    const drive = google.drive({ version: "v3", auth });
 
-  const res = await drive.files.list({
-    q: "'me' in owners",
-    fields: "files(id, name, size, createdTime)",
-    pageSize: 100,
-  });
+    const res = await drive.files.list({
+      q: "'me' in owners",
+      fields: "files(id, name, size, createdTime)",
+      pageSize: 100,
+    });
 
-  console.log("📂 Files owned by the service account:");
-  res.data.files.forEach(file => {
-    const size = file.size ? `${(file.size / 1024).toFixed(2)} KB` : "Unknown";
-    console.log(`- ${file.name} (ID: ${file.id}, Size: ${size})`);
-  });
-
-  // 🔁 Optional: Delete old files if needed to free up quota
-  /*
-  if (res.data.files.length > 90) {
-    const oldest = res.data.files.sort((a, b) => new Date(a.createdTime) - new Date(b.createdTime))[0];
-    await drive.files.delete({ fileId: oldest.id });
-    console.log(`🗑 Deleted oldest file: ${oldest.name}`);
+    if (res.data.files.length === 0) {
+      console.log("📂 No files owned by the service account.");
+    } else {
+      console.log("📂 Files owned by the service account:");
+      res.data.files.forEach(file => {
+        const size = file.size ? `${(file.size / 1024).toFixed(2)} KB` : "Unknown";
+        console.log(`- ${file.name} (ID: ${file.id}, Size: ${size})`);
+      });
+    }
+  } catch (err) {
+    console.error("⚠️ Failed to list files:", err.message);
   }
-  */
 }
 
-// 📝 Create the Google Doc
+/**
+ * Creates a Google Doc with the provided summary text.
+ */
 async function createGoogleDoc(summaryText) {
-  const auth = await authorize();
-  const docs = google.docs({ version: "v1", auth });
-  const drive = google.drive({ version: "v3", auth });
+  try {
+    const auth = await authorize();
+    const docs = google.docs({ version: "v1", auth });
+    const drive = google.drive({ version: "v3", auth });
 
-  // 🔍 Debug Drive files owned by this service account
-  await listFilesOwnedByServiceAccount(auth);
+    // Optional: List owned files to debug quota
+    await listFilesOwnedByServiceAccount(auth);
 
-  // ✅ Create the doc (in service account's root Drive)
-  const file = await drive.files.create({
-    requestBody: {
-      name: "MinuteMate Meeting Summary",
-      mimeType: "application/vnd.google-apps.document",
-    },
-  });
+    // Step 1: Create an empty Google Doc
+    const file = await drive.files.create({
+      requestBody: {
+        name: "MinuteMate Meeting Summary",
+        mimeType: "application/vnd.google-apps.document",
+      },
+    });
 
-  const documentId = file.data.id;
+    const documentId = file.data.id;
 
-  // ✏️ Insert summary into the doc
-  await docs.documents.batchUpdate({
-    documentId,
-    requestBody: {
-      requests: [
-        {
-          insertText: {
-            location: { index: 1 },
-            text: summaryText,
+    // Step 2: Insert the text content into the doc
+    await docs.documents.batchUpdate({
+      documentId,
+      requestBody: {
+        requests: [
+          {
+            insertText: {
+              location: { index: 1 },
+              text: summaryText,
+            },
           },
-        },
-      ],
-    },
-  });
+        ],
+      },
+    });
 
-  console.log("✅ Summary exported to Google Docs.");
-  return `https://docs.google.com/document/d/${documentId}/edit`;
+    console.log("✅ Summary exported to Google Docs.");
+    return `https://docs.google.com/document/d/${documentId}/edit`;
+  } catch (err) {
+    console.error("❌ Google Docs Export Error:", err.message);
+    throw err;
+  }
 }
 
 module.exports = { createGoogleDoc };
