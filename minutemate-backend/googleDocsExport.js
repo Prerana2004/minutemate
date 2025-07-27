@@ -1,4 +1,3 @@
-const fs = require("fs");
 const { google } = require("googleapis");
 
 async function authorize() {
@@ -15,7 +14,7 @@ async function authorize() {
   return await auth.getClient();
 }
 
-// ✅ ADD THIS FUNCTION TO LIST FILES OWNED BY SERVICE ACCOUNT
+// ✅ List files to debug Drive quota and ownership
 async function listFilesOwnedByServiceAccount(auth) {
   const drive = google.drive({ version: "v3", auth });
 
@@ -30,19 +29,27 @@ async function listFilesOwnedByServiceAccount(auth) {
     const size = file.size ? `${(file.size / 1024).toFixed(2)} KB` : "Unknown";
     console.log(`- ${file.name} (ID: ${file.id}, Size: ${size})`);
   });
+
+  // 🔁 Optional: Delete old files if needed to free up quota
+  /*
+  if (res.data.files.length > 90) {
+    const oldest = res.data.files.sort((a, b) => new Date(a.createdTime) - new Date(b.createdTime))[0];
+    await drive.files.delete({ fileId: oldest.id });
+    console.log(`🗑 Deleted oldest file: ${oldest.name}`);
+  }
+  */
 }
 
-// 📝 MAIN FUNCTION TO CREATE GOOGLE DOC
+// 📝 Create the Google Doc
 async function createGoogleDoc(summaryText) {
   const auth = await authorize();
   const docs = google.docs({ version: "v1", auth });
   const drive = google.drive({ version: "v3", auth });
 
-  // 🔍 Call this before creating doc to debug quota
+  // 🔍 Debug Drive files owned by this service account
   await listFilesOwnedByServiceAccount(auth);
 
-  // Step 1: Create the doc
-  // Do NOT set the parent folder
+  // ✅ Create the doc (in service account's root Drive)
   const file = await drive.files.create({
     requestBody: {
       name: "MinuteMate Meeting Summary",
@@ -52,7 +59,7 @@ async function createGoogleDoc(summaryText) {
 
   const documentId = file.data.id;
 
-  // Step 2: Add content
+  // ✏️ Insert summary into the doc
   await docs.documents.batchUpdate({
     documentId,
     requestBody: {

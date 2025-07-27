@@ -4,7 +4,8 @@ import { useState, useRef } from 'react';
 const Recorder = () => {
   const [recording, setRecording] = useState(false);
   const [audioURL, setAudioURL] = useState(null);
-  const [transcription, setTranscription] = useState("");
+  const [summary, setSummary] = useState("");
+  const [rawTranscript, setRawTranscript] = useState("");
   const [docLink, setDocLink] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -23,7 +24,8 @@ const Recorder = () => {
       const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
       const url = URL.createObjectURL(audioBlob);
       setAudioURL(url);
-      setTranscription("Recording complete. Transcribing...");
+      setSummary("Recording complete. Transcribing...");
+      setRawTranscript("");
       setDocLink("");
       setShowDropdown(false);
 
@@ -55,30 +57,25 @@ const Recorder = () => {
 
       if (!response.ok) {
         const errorMessage = data?.error || "An unexpected error occurred during transcription.";
-        setTranscription(`❌ ${errorMessage}`);
+        setSummary(`❌ ${errorMessage}`);
         setIsUploading(false);
         return;
       }
 
-      if (data.text) {
-        setTranscription(data.text);
-      } else {
-        setTranscription("❌ Transcription failed (no text returned).");
-      }
+      setSummary(data.text || "❌ Transcription failed (no summary returned).");
+      setRawTranscript(data.rawTranscript || "❌ Full transcript not available.");
+      setDocLink(data.docLink || "");
 
-      if (data.docLink) {
-        setDocLink(data.docLink);
-      }
     } catch (error) {
       console.error("Error uploading/transcribing:", error);
-      setTranscription("❌ Network or server error occurred.");
+      setSummary("❌ Network or server error occurred.");
     }
     setIsUploading(false);
   };
 
   const downloadAsText = () => {
     const element = document.createElement("a");
-    const file = new Blob([transcription], { type: "text/plain" });
+    const file = new Blob([summary], { type: "text/plain" });
     element.href = URL.createObjectURL(file);
     element.download = "meeting-summary.txt";
     document.body.appendChild(element);
@@ -87,14 +84,30 @@ const Recorder = () => {
 
   const downloadAsPDF = () => {
     const doc = new jsPDF();
-    const lines = doc.splitTextToSize(transcription, 180);
+    const lines = doc.splitTextToSize(summary, 180);
     doc.text(lines, 10, 20);
     doc.save("meeting-summary.pdf");
   };
 
+  const sendSummaryEmail = async () => {
+    const response = await fetch("http://localhost:5000/send-summary", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: "recipient@example.com",
+        summaryText: summary,
+      }),
+    });
+
+    const data = await response.json();
+    alert(data.message);
+  };
+
   return (
     <div className="text-center p-6 bg-white rounded-xl shadow-lg max-w-xl mx-auto">
-      <h2 className="text-2xl font-semibold mb-4">🎙 Audio Recorder</h2>
+      <h2 className="text-2xl font-semibold mb-4">🎧 Audio Recorder</h2>
 
       {!recording ? (
         <button onClick={startRecording} className="bg-green-500 hover:bg-green-700 text-white px-4 py-2 rounded">
@@ -112,17 +125,24 @@ const Recorder = () => {
           <p className="text-sm text-gray-500 mt-2">
             {isUploading
               ? "🔄 Transcribing..."
-              : transcription === "Recording complete. Transcribing..."
-              ? transcription
+              : summary === "Recording complete. Transcribing..."
+              ? summary
               : "Recording available."}
           </p>
         </div>
       )}
 
-      {transcription && (
+      {rawTranscript && (
         <div className="mt-6 bg-gray-100 p-4 rounded text-left shadow whitespace-pre-wrap">
-          <h3 className="font-bold mb-2">📄 Full Meeting Summary:</h3>
-          <pre className="text-gray-800 whitespace-pre-wrap break-words">{transcription}</pre>
+          <h3 className="font-bold mb-2">🗣 Full Transcript:</h3>
+          <pre className="text-gray-800 whitespace-pre-wrap break-words">{rawTranscript}</pre>
+        </div>
+      )}
+
+      {summary && (
+        <div className="mt-6 bg-gray-100 p-4 rounded text-left shadow whitespace-pre-wrap">
+          <h3 className="font-bold mb-2">📝 Meeting Summary:</h3>
+          <pre className="text-gray-800 whitespace-pre-wrap break-words">{summary}</pre>
 
           <div className="mt-4 relative inline-block text-left w-full">
             <button
@@ -163,6 +183,15 @@ const Recorder = () => {
                       View in Google Docs
                     </a>
                   )}
+
+                  <button
+                    onClick={sendSummaryEmail}
+                    className="px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100 w-full"
+                    role="menuitem"
+                  >
+                    Send via Email
+                  </button>
+
                 </div>
               </div>
             )}
