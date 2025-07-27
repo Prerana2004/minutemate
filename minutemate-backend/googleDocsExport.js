@@ -1,3 +1,4 @@
+require("dotenv").config();
 const fs = require("fs");
 const { google } = require("googleapis");
 
@@ -85,8 +86,20 @@ async function createGoogleDoc(summaryText) {
       },
     });
 
-    console.log("✅ Summary exported to Google Docs.");
+    // ✅ Step 3: Give your Gmail access to the doc
+    await drive.permissions.create({
+      fileId: documentId,
+      requestBody: {
+        role: "writer", // or "owner" if within same org (not allowed for Gmail)
+        type: "user",
+        emailAddress: "shisprerana20@gmail.com",
+      },
+      fields: "id",
+    });
+
+    console.log("✅ Summary exported and shared with your Gmail.");
     return `https://docs.google.com/document/d/${documentId}/edit`;
+
   } catch (err) {
     console.error("❌ Google Docs Export Error:", err.message);
     throw err;

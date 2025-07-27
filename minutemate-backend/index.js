@@ -1,16 +1,14 @@
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
 const fs = require("fs");
 const ffmpeg = require("fluent-ffmpeg");
 const axios = require("axios");
-const dotenv = require("dotenv");
 const mime = require("mime-types");
 const nodemailer = require("nodemailer");
 const path = require("path");
 const { createGoogleDoc } = require("./googleDocsExport");
-
-dotenv.config();
 
 const app = express();
 const port = 5000;
@@ -194,7 +192,7 @@ app.post("/send-summary", async (req, res) => {
     await transporter.sendMail({
       from: `MinuteMate Bot <${process.env.EMAIL_USER}>`,
       to: email,
-      subject: "📝 Your Meeting Summary",
+      subject: "📜 Your Meeting Summary",
       text: `Here's your meeting summary.\n\nGoogle Doc: ${docLink}\n\n${summaryText}`,
       attachments: [
         {
