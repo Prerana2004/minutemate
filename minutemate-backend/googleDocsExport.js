@@ -7,6 +7,8 @@ const { google } = require("googleapis");
 async function authorize() {
   const credentials = JSON.parse(process.env.GOOGLE_CREDS);
 
+  console.log("📎 Using service account email:", credentials.client_email); // ✅ Debug email
+
   const auth = new google.auth.GoogleAuth({
     credentials,
     scopes: [
@@ -54,22 +56,21 @@ async function createGoogleDoc(summaryText) {
     const docs = google.docs({ version: "v1", auth });
     const drive = google.drive({ version: "v3", auth });
 
-    // Optional: List owned files to debug quota
+    // 🔍 Optional: check storage quota
     await listFilesOwnedByServiceAccount(auth);
 
-    // Step 1: Create an empty Google Doc
+    // Step 1: Create an empty Google Doc (no folder = goes to "My Drive" of service account)
     const file = await drive.files.create({
-  requestBody: {
-    name: "MinuteMate Meeting Summary",
-    mimeType: "application/vnd.google-apps.document",
-    parents: ["1_cPi3rK8f-rBFzcaUklDTTiWCOpyRsnJ"], 
-  },
-});
-
+      requestBody: {
+        name: "MinuteMate Meeting Summary",
+        mimeType: "application/vnd.google-apps.document",
+        parents: ["1bLlV83fciizW18Knpecwfn9tu-F2l09m"], // ✅ Use new folder ID here
+      },
+    });
 
     const documentId = file.data.id;
 
-    // Step 2: Insert the text content into the doc
+    // Step 2: Insert text into the doc
     await docs.documents.batchUpdate({
       documentId,
       requestBody: {
