@@ -62,7 +62,7 @@ async function createGoogleDoc(summaryText) {
   requestBody: {
     name: "MinuteMate Meeting Summary",
     mimeType: "application/vnd.google-apps.document",
-    parents: ["1AbCDeFgHiJKlMNopQRsTuvWxYZ"], 
+    parents: ["1_cPi3rK8f-rBFzcaUklDTTiWCOpyRsnJ"], 
   },
 });
 
