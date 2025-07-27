@@ -29,6 +29,7 @@ function normalizeSentenceEnding(line) {
 }
 
 app.post("/transcribe-clean", upload.single("file"), (req, res) => {
+  console.log("🟢 Request received at /transcribe-clean");
   const audioPath = req.file.path;
 
   const validMimeTypes = ["audio/webm", "audio/mpeg", "audio/weba"];
@@ -44,6 +45,7 @@ app.post("/transcribe-clean", upload.single("file"), (req, res) => {
     .save(wavPath)
     .on("end", async () => {
       try {
+        console.log("✅ Audio converted. Sending to Hugging Face...");
         const audioBuffer = fs.readFileSync(wavPath);
         const contentType = mime.lookup(wavPath) || "application/octet-stream";
 
@@ -61,6 +63,7 @@ app.post("/transcribe-clean", upload.single("file"), (req, res) => {
         );
 
         const rawTranscript = response.data.text;
+        console.log("✅ HF API Success:", rawTranscript);
         if (!rawTranscript) throw new Error("Empty response from Whisper API");
 
         const withoutTimestamps = rawTranscript.replace(/\[\d{2}:\d{2}\.\d{3} --> \d{2}:\d{2}\.\d{3}\]/g, "");
