@@ -63,6 +63,7 @@ app.post("/transcribe-clean", upload.single("file"), (req, res) => {
         const rawTranscript = response.data.text;
         console.log("✅ HF API Success:", rawTranscript);
         if (!rawTranscript) throw new Error("Empty response from Whisper API");
+        console.log("⚙️ Starting export to PDF/Notion/Google Docs...");
 
         const withoutTimestamps = rawTranscript.replace(/\[\d{2}:\d{2}\.\d{3} --> \d{2}:\d{2}\.\d{3}\]/g, "");
         const cleanedText = withoutTimestamps
