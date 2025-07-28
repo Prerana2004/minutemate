@@ -46,10 +46,12 @@ app.get("/auth/google", (req, res) => {
       "https://www.googleapis.com/auth/userinfo.email",
       "https://www.googleapis.com/auth/userinfo.profile"
     ],
-    prompt: "consent"
+    prompt: "consent",
+    redirect_uri: process.env.GOOGLE_REDIRECT_URI // ✅ Add this line
   });
   res.redirect(authUrl);
 });
+
 
 app.get("/auth/google/callback", async (req, res) => {
   try {
