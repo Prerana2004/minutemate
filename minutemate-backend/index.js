@@ -8,7 +8,9 @@ const axios = require("axios");
 const mime = require("mime-types");
 const path = require("path");
 const nodemailer = require("nodemailer");
-const { exportToGoogleDocs  } = require("./googleDocsExport");
+const { exportToGoogleDocs } = require("./googleDocsExport");
+const ffmpegPath = require("ffmpeg-static");
+ffmpeg.setFfmpegPath(ffmpegPath);
 
 const app = express();
 const port = 5000;
@@ -29,10 +31,8 @@ const normalizeSentence = (line) => line.replace(/\.*$/, ".");
 app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
   try {
     console.log("Request body:", req.body);
-    console.log("Received file:", req.file);
     console.log("📥 Received file:", req.file);
-    console.log("📍 File saved at (absolute path):", path.resolve(req.file.path));
-
+    console.log("📍 File saved at:", path.resolve(req.file.path));
 
     if (!req.file) {
       return res.status(400).json({ error: "No audio file received" });
@@ -41,7 +41,7 @@ app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
     const audioPath = req.file.path;
     const wavPath = `${audioPath}.wav`;
 
-    // Convert to WAV using FFmpeg
+    // Convert to WAV
     await new Promise((resolve, reject) => {
       ffmpeg(audioPath)
         .toFormat("wav")
@@ -50,7 +50,10 @@ app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
         .save(wavPath);
     });
 
-    // Send to Whisper
+    if (!fs.existsSync(wavPath)) {
+      throw new Error("WAV conversion failed");
+    }
+
     const audioBuffer = fs.readFileSync(wavPath);
     const response = await axios.post(
       "https://api-inference.huggingface.co/models/openai/whisper-large-v3",
@@ -106,8 +109,7 @@ app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
       })
       .join("\n") || "No action items identified.";
 
-    const summary = `📌 Meeting Summary
-=========================
+    const summary = `📌 Meeting Summary\n=========================
 
 📅 Date: ${date}
 📝 Title: ${meetingTitle}
@@ -120,14 +122,12 @@ ${keyPoints}
 ${decisions}
 
 📌 Action Items:
-${actionItems}
-`;
+${actionItems}\n`;
 
     const fileId = `MeetingSummary_${Date.now()}`;
     const txtPath = path.join(__dirname, "exports", `${fileId}.txt`);
     fs.writeFileSync(txtPath, summary, "utf8");
 
-    // Try to create a Google Doc
     let docUrl = null;
     try {
       docUrl = await exportToGoogleDocs(summary);
@@ -135,7 +135,6 @@ ${actionItems}
       console.error("Google Docs export failed:", err.message);
     }
 
-    // Clean up
     fs.unlinkSync(audioPath);
     fs.unlinkSync(wavPath);
 
@@ -146,6 +145,7 @@ ${actionItems}
     });
   } catch (error) {
     console.error("❌ Processing Error:", error.message);
+    if (error.response?.data) console.error("🧾 Whisper API Response:", error.response.data);
     if (req.file?.path) fs.unlinkSync(req.file.path);
     if (fs.existsSync(`${req.file?.path}.wav`)) fs.unlinkSync(`${req.file.path}.wav`);
     res.status(500).json({ error: "Transcription failed." });
@@ -179,7 +179,6 @@ app.post("/send-summary", async (req, res) => {
       text: `Here is your meeting summary:\n\n${docLink}\n\n${summaryText}`,
       attachments: [{ filename: "MeetingSummary.txt", path: tempPath }],
     });
-ffmpeg -version
 
     fs.unlinkSync(tempPath);
     res.json({ message: "✅ Email sent." });
