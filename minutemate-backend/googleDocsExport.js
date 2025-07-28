@@ -3,7 +3,7 @@ const { GoogleAuth } = require("google-auth-library");
 
 async function createGoogleDoc(summaryText) {
   const auth = new GoogleAuth({
-    keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS,
+    keyFile: process.env.GOOGLE_CREDS,
     scopes: ["https://www.googleapis.com/auth/documents", "https://www.googleapis.com/auth/drive.file"],
   });
 
