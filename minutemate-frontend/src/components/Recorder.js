@@ -1,4 +1,3 @@
-// Recorder.js (Frontend without OAuth)
 import { jsPDF } from "jspdf";
 import { useState, useRef } from 'react';
 
@@ -8,6 +7,8 @@ const Recorder = () => {
   const [summary, setSummary] = useState("");
   const [rawTranscript, setRawTranscript] = useState("");
   const [docLink, setDocLink] = useState("");
+  const [pdfLink, setPdfLink] = useState("");
+  const [txtLink, setTxtLink] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const mediaRecorderRef = useRef(null);
@@ -28,10 +29,12 @@ const Recorder = () => {
       setSummary("Recording complete. Transcribing...");
       setRawTranscript("");
       setDocLink("");
+      setPdfLink("");
+      setTxtLink("");
       setShowDropdown(false);
 
       const formData = new FormData();
-      formData.append("file", audioBlob, "recording.webm");
+      formData.append("audio", audioBlob, "recording.webm");
 
       await uploadAndTranscribe(formData);
       audioChunksRef.current = [];
@@ -64,8 +67,10 @@ const Recorder = () => {
       }
 
       setSummary(data.text || "❌ Transcription failed (no summary returned).");
-      setRawTranscript(data.rawTranscript || "❌ Full transcript not available.");
+      setRawTranscript(data.text || "❌ Full transcript not available.");
       setDocLink(data.docLink || "");
+      setPdfLink(data.pdfLink ? `https://minutemate.onrender.com${data.pdfLink}` : "");
+      setTxtLink(data.txtLink ? `https://minutemate.onrender.com${data.txtLink}` : "");
 
     } catch (error) {
       console.error("Error uploading/transcribing:", error);
@@ -161,6 +166,18 @@ const Recorder = () => {
                   <button onClick={downloadAsPDF} className="px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100 w-full">
                     Download as PDF
                   </button>
+
+                  {pdfLink && (
+                    <a href={pdfLink} className="px-4 py-2 text-sm text-left text-blue-600 hover:bg-gray-100 w-full block" download target="_blank">
+                      Open Exported PDF
+                    </a>
+                  )}
+
+                  {txtLink && (
+                    <a href={txtLink} className="px-4 py-2 text-sm text-left text-blue-600 hover:bg-gray-100 w-full block" download target="_blank">
+                      Open Exported TXT
+                    </a>
+                  )}
 
                   {docLink && (
                     <a href={docLink} target="_blank" rel="noopener noreferrer" className="px-4 py-2 text-sm text-left text-blue-600 hover:bg-gray-100 w-full block">
