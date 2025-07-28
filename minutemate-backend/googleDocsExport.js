@@ -2,9 +2,15 @@ const { google } = require("googleapis");
 const { GoogleAuth } = require("google-auth-library");
 
 async function createGoogleDoc(summaryText) {
+  // Parse the GOOGLE_CREDS JSON string from env
+  const credentials = JSON.parse(process.env.GOOGLE_CREDS);
+
   const auth = new GoogleAuth({
-    keyFile: process.env.GOOGLE_CREDS,
-    scopes: ["https://www.googleapis.com/auth/documents", "https://www.googleapis.com/auth/drive.file"],
+    credentials, // ✅ pass parsed credentials here
+    scopes: [
+      "https://www.googleapis.com/auth/documents",
+      "https://www.googleapis.com/auth/drive.file"
+    ],
   });
 
   const client = await auth.getClient();
@@ -13,9 +19,7 @@ async function createGoogleDoc(summaryText) {
   const title = "Meeting Summary - " + new Date().toLocaleString();
 
   const doc = await docs.documents.create({
-    requestBody: {
-      title,
-    },
+    requestBody: { title },
   });
 
   const documentId = doc.data.documentId;
