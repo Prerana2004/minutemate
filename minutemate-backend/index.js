@@ -8,7 +8,7 @@ const axios = require("axios");
 const mime = require("mime-types");
 const path = require("path");
 const nodemailer = require("nodemailer");
-const { exportToGoogleDocs } = require("./googleDocsExport");
+const { jsPDF } = require("jspdf");
 const ffmpegPath = require("ffmpeg-static");
 ffmpeg.setFfmpegPath(ffmpegPath);
 
@@ -41,7 +41,6 @@ app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
     const audioPath = req.file.path;
     const wavPath = `${audioPath}.wav`;
 
-    // Convert to WAV
     await new Promise((resolve, reject) => {
       ffmpeg(audioPath)
         .toFormat("wav")
@@ -62,7 +61,7 @@ app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
         headers: {
           Authorization: `Bearer ${process.env.HF_TOKEN}`,
           "Content-Type": mime.lookup(wavPath) || "audio/wav",
-          "Accept": "application/json"   
+          Accept: "application/json",
         },
         timeout: 300000,
       }
@@ -125,7 +124,6 @@ ${decisions}
 📌 Action Items:
 ${actionItems}\n`;
 
-    // ✅ Ensure "exports/" folder exists
     const exportDir = path.join(__dirname, "exports");
     if (!fs.existsSync(exportDir)) {
       fs.mkdirSync(exportDir, { recursive: true });
@@ -135,20 +133,19 @@ ${actionItems}\n`;
     const txtPath = path.join(exportDir, `${fileId}.txt`);
     fs.writeFileSync(txtPath, summary, "utf8");
 
-    let docUrl = null;
-    try {
-      docUrl = await exportToGoogleDocs(summary);
-    } catch (err) {
-      console.error("Google Docs export failed:", err.message);
-    }
+    const pdfPath = path.join(exportDir, `${fileId}.pdf`);
+    const doc = new jsPDF();
+    const linesSplit = doc.splitTextToSize(summary, 180);
+    doc.text(linesSplit, 10, 10);
+    doc.save(pdfPath);
 
     fs.unlinkSync(audioPath);
     fs.unlinkSync(wavPath);
 
     res.json({
       text: summary,
-      docLink: docUrl,
       txtLink: `/exports/${fileId}.txt`,
+      pdfLink: `/exports/${fileId}.pdf`,
     });
   } catch (error) {
     console.error("❌ Processing Error:", error.message);
@@ -161,13 +158,12 @@ ${actionItems}\n`;
 
 // SEND SUMMARY VIA EMAIL
 app.post("/send-summary", async (req, res) => {
-  const { email, summaryText, docLink } = req.body;
+  const { email, summaryText } = req.body;
 
-  if (!email || !summaryText || !docLink) {
+  if (!email || !summaryText) {
     return res.status(400).json({ message: "Missing input" });
   }
 
-  // ✅ Ensure "exports/" folder exists
   const exportDir = path.join(__dirname, "exports");
   if (!fs.existsSync(exportDir)) {
     fs.mkdirSync(exportDir, { recursive: true });
@@ -189,7 +185,7 @@ app.post("/send-summary", async (req, res) => {
       from: `"MinuteMate Bot" <${process.env.EMAIL_USER}>`,
       to: email,
       subject: "📝 Your Meeting Summary",
-      text: `Here is your meeting summary:\n\n${docLink}\n\n${summaryText}`,
+      text: `Here is your meeting summary attached.`,
       attachments: [{ filename: "MeetingSummary.txt", path: tempPath }],
     });
 
@@ -201,7 +197,6 @@ app.post("/send-summary", async (req, res) => {
   }
 });
 
-// START SERVER
 app.listen(port, () => {
   console.log(`🚀 Server listening on http://localhost:${port}`);
 });
