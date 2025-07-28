@@ -62,7 +62,6 @@ const Recorder = () => {
 
       setSummary(data.text || "❌ Transcription failed (no summary returned).");
       setRawTranscript(data.text || "❌ Full transcript not available.");
-
     } catch (error) {
       console.error("Error uploading/transcribing:", error);
       setSummary("❌ Network or server error occurred.");
@@ -84,22 +83,6 @@ const Recorder = () => {
     const lines = doc.splitTextToSize(summary, 180);
     doc.text(lines, 10, 20);
     doc.save("meeting-summary.pdf");
-  };
-
-  const sendSummaryEmail = async () => {
-    const response = await fetch("https://minutemate.onrender.com/send-summary", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email: "recipient@example.com",
-        summaryText: summary,
-      }),
-    });
-
-    const data = await response.json();
-    alert(data.message);
   };
 
   return (
@@ -155,10 +138,6 @@ const Recorder = () => {
 
                   <button onClick={downloadAsPDF} className="px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100 w-full">
                     Download as PDF
-                  </button>
-
-                  <button onClick={sendSummaryEmail} className="px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100 w-full">
-                    Send via Email
                   </button>
                 </div>
               </div>
