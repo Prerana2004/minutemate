@@ -47,7 +47,6 @@ app.get("/auth/google", (req, res) => {
       "https://www.googleapis.com/auth/userinfo.profile"
     ],
     prompt: "consent",
-    redirect_uri: process.env.GOOGLE_REDIRECT_URI,  // 👈 this must be added
     client_id: process.env.GOOGLE_CLIENT_ID
   });
   res.redirect(authUrl);

@@ -4,3 +4,4 @@ uploads/
 token.json
 minutemate-backend/credentials.json
 minutemate-backend/web-client-credentials.json
+minutemate-backend/client_secret.json

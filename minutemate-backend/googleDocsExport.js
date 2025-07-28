@@ -20,7 +20,7 @@ async function createGoogleDoc(summaryText, tokens) {
     const oAuth2Client = new google.auth.OAuth2(
       process.env.CLIENT_ID,
       process.env.CLIENT_SECRET,
-      `${process.env.BACKEND_URL}/auth/google/callback`
+      "https://minutemate.onrender.com/auth/google/callback"
     );
 
     oAuth2Client.setCredentials(tokens);
