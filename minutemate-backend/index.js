@@ -15,12 +15,14 @@ const port = 5000;
 
 app.use(cors({ origin: "*", methods: ["GET", "POST"] }));
 app.use(express.json());
+app.use("/exports", express.static(path.join(__dirname, "exports"))); // ✅ to serve txt file download
+
 const upload = multer({ dest: "uploads/" });
 
 const normalizeSentence = (line) => line.replace(/\.*$/, ".");
 
 // MAIN TRANSCRIPTION ENDPOINT
-app.post("/transcribe-clean", upload.single("file"), async (req, res) => {
+app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
   const audioPath = req.file.path;
   const wavPath = `${audioPath}.wav`;
 
