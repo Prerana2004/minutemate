@@ -1,54 +1,47 @@
 const { google } = require("googleapis");
-const { GoogleAuth } = require("google-auth-library");
 
 const createGoogleDoc = async (title, content) => {
-  // Parse and fix the private_key line breaks
-  const googleCreds = JSON.parse(process.env.GOOGLE_CREDS);
-  googleCreds.private_key = googleCreds.private_key.replace(/\\n/g, '\n');
-
-  // Initialize authentication
-  const auth = new GoogleAuth({
-    credentials: googleCreds,
-    scopes: [
-      "https://www.googleapis.com/auth/documents",
-      "https://www.googleapis.com/auth/drive",
-    ],
-  });
-
-  const authClient = await auth.getClient();
-  const docs = google.docs({ version: "v1", auth: authClient });
-  const drive = google.drive({ version: "v3", auth: authClient });
-
-  const folderId = "1bLlV83fciizW18Knpecwfn9tu-F2l09m"; // Replace with your shared folder ID
-
   try {
-    // Step 1: Create the Google Doc
-    const docResponse = await docs.documents.create({
-      requestBody: {
-        title: title,
-      },
+    const creds = JSON.parse(process.env.GOOGLE_CREDS);
+    creds.private_key = creds.private_key.replace(/\\n/g, '\n'); // Fix newline issues
+
+    const auth = new google.auth.GoogleAuth({
+      credentials: creds,
+      scopes: [
+        "https://www.googleapis.com/auth/documents",
+        "https://www.googleapis.com/auth/drive",
+      ],
     });
 
-    const documentId = docResponse.data.documentId;
+    const authClient = await auth.getClient();
 
-    // Step 2: Move the doc into the specified shared folder
-    await drive.files.update({
-      fileId: documentId,
-      addParents: folderId,
-      removeParents: "root",
-      fields: "id, parents",
+    const docs = google.docs({ version: "v1", auth: authClient });
+    const drive = google.drive({ version: "v3", auth: authClient });
+
+    const folderId = "1bLlV83fciizW18Knpecwfn9tu-F2l09m"; // ✅ Your shared folder ID
+
+    // Step 1: Create Google Doc
+    const fileMetadata = {
+      name: title,
+      mimeType: "application/vnd.google-apps.document",
+      parents: [folderId], // ✅ MUST be an array
+    };
+
+    const docFile = await drive.files.create({
+      resource: fileMetadata,
+      fields: "id",
     });
 
-    // Step 3: Insert content into the document
+    const documentId = docFile.data.id;
+
+    // Step 2: Insert text content
     await docs.documents.batchUpdate({
-      documentId: documentId,
+      documentId,
       requestBody: {
         requests: [
           {
             insertText: {
-              location: {
-                index: 1,
-              },
+              location: { index: 1 },
               text: content,
             },
           },
@@ -56,6 +49,7 @@ const createGoogleDoc = async (title, content) => {
       },
     });
 
+    console.log("✅ Google Doc created successfully.");
     return `https://docs.google.com/document/d/${documentId}/edit`;
 
   } catch (error) {
