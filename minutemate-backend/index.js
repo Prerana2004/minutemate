@@ -8,7 +8,6 @@ const axios = require("axios");
 const mime = require("mime-types");
 const path = require("path");
 const nodemailer = require("nodemailer");
-const { jsPDF } = require("jspdf");
 const ffmpegPath = require("ffmpeg-static");
 ffmpeg.setFfmpegPath(ffmpegPath);
 
