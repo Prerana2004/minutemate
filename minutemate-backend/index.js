@@ -6,211 +6,170 @@ const fs = require("fs");
 const ffmpeg = require("fluent-ffmpeg");
 const axios = require("axios");
 const mime = require("mime-types");
-const nodemailer = require("nodemailer");
 const path = require("path");
+const nodemailer = require("nodemailer");
 const { createGoogleDoc } = require("./googleDocsExport");
 
 const app = express();
 const port = 5000;
 
-app.use(cors({
-  origin: "https://minutemate-lyart.vercel.app",
-  methods: ["GET", "POST"],
-  credentials: true
-}));
-
+app.use(cors({ origin: "*", methods: ["GET", "POST"] }));
 app.use(express.json());
 const upload = multer({ dest: "uploads/" });
 
-function normalizeSentenceEnding(line) {
-  return line.replace(/\.*$/, ".");
-}
+const normalizeSentence = (line) => line.replace(/\.*$/, ".");
 
-app.post("/transcribe-clean", upload.single("file"), (req, res) => {
-  console.log("🟢 Request received at /transcribe-clean");
+// MAIN TRANSCRIPTION ENDPOINT
+app.post("/transcribe-clean", upload.single("file"), async (req, res) => {
   const audioPath = req.file.path;
-
-  const validMimeTypes = ["audio/webm", "audio/mpeg", "audio/weba"];
-  if (!validMimeTypes.includes(req.file.mimetype)) {
-    fs.unlinkSync(audioPath);
-    return res.status(400).json({ error: "Only .mp3 or .webm audio files are supported." });
-  }
-
   const wavPath = `${audioPath}.wav`;
 
-  ffmpeg(audioPath)
-    .toFormat("wav")
-    .save(wavPath)
-    .on("end", async () => {
-      try {
-        console.log("✅ Audio converted. Sending to Hugging Face...");
-        const audioBuffer = fs.readFileSync(wavPath);
-        const contentType = mime.lookup(wavPath) || "application/octet-stream";
-
-        const response = await axios.post(
-          "https://api-inference.huggingface.co/models/openai/whisper-large-v3",
-          audioBuffer,
-          {
-            headers: {
-              Authorization: `Bearer ${process.env.HF_TOKEN}`,
-              "Content-Type": contentType,
-              Accept: "application/json"
-            },
-            timeout: 300000
-          }
-        );
-
-        const rawTranscript = response.data.text;
-        console.log("✅ HF API Success:", rawTranscript);
-        if (!rawTranscript) throw new Error("Empty response from Whisper API");
-        console.log("⚙️ Starting export to PDF/Notion/Google Docs...");
-
-        const withoutTimestamps = rawTranscript.replace(/\[\d{2}:\d{2}\.\d{3} --> \d{2}:\d{2}\.\d{3}\]/g, "");
-        const cleanedText = withoutTimestamps
-          .replace(/\b(um|uh|like|you know)\b/gi, "")
-          .replace(/\s{2,}/g, " ")
-          .trim();
-
-        const lines = cleanedText
-          .replace(/([.?!])\s*(?=[A-Z])/g, "$1|")
-          .split("|")
-          .map(line => line.trim())
-          .filter(line => line.length > 0);
-
-        const titleLine = lines.find(line => /(welcome|meeting|planning)/i.test(line) && line.toLowerCase().includes("meeting"));
-        const meetingTitle = titleLine ? titleLine.replace(/^welcome to\s+/i, "").trim() : "Untitled Meeting";
-
-        const date = new Date().toLocaleDateString("en-IN", {
-          day: "numeric", month: "long", year: "numeric"
-        });
-
-        const participantMatches = cleanedText.match(/\b(I am|This is|My name is|[A-Z][a-z]+ here)\b.*?\b([A-Z][a-z]+)\b/gi);
-        const participantNames = participantMatches
-          ? participantMatches.map(p => p.split(" ").slice(-1)[0]).join(", ")
-          : null;
-
-        const ignorePhrases = ["welcome", "hello", "hi", "i am", "this is", "thank you", "everyone", "good morning"];
-        const keyPointsFiltered = lines.filter(line => {
-          const lc = line.toLowerCase();
-          return !ignorePhrases.some(phrase => lc.includes(phrase)) && line.length > 20 && !/\b(i am|this is)\b/i.test(line);
-        }).slice(0, 5);
-
-        const keyPoints = keyPointsFiltered.length
-          ? keyPointsFiltered.map(line => `• ${normalizeSentenceEnding(line.trim())}`).join("\n")
-          : "No key points mentioned.";
-
-        const decisionIndicators = [
-          "decided", "we will", "we shall", "we plan", "scheduled", "finalized",
-          "going to", "agreed", "will be", "next step is", "our plan is", "we decided", "the decision",
-          "we have decided", "it was decided"
-        ];
-
-        const summarizedDecisionsLines = lines.filter(line => {
-          const lc = line.toLowerCase();
-          return decisionIndicators.some(ind => lc.includes(ind)) && !lc.includes("welcome") && !lc.includes("i am") && !lc.includes("thank you");
-        });
-
-        const summarizedDecisions = summarizedDecisionsLines.length
-          ? summarizedDecisionsLines.map(line => `• ${normalizeSentenceEnding(line.trim())}`).join("\n")
-          : "No clear decisions mentioned.";
-
-        const actionItemRegex = /\b(will|need to|going to|have to|must|shall|plan to|next step is)\b/i;
-        const deadlineRegex = /\b(by|on|before|after)\s+((next\s+)?(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)|\d{1,2}(st|nd|rd|th)?\s+\w+|next week|tomorrow|today|this week|end of day)\b/i;
-
-        const actionItems = [];
-        lines.forEach(line => {
-          const lc = line.toLowerCase();
-          if (line.split(" ").length > 30) return;
-
-          if (actionItemRegex.test(lc)) {
-            let responsible = "Someone";
-
-            if (/^i\b/i.test(line)) {
-              responsible = participantNames || "Someone";
-            } else {
-              const nameMatch = line.match(/\b([A-Z][a-z]+)\s+(will|shall|must|needs to|has to)\b/);
-              if (nameMatch) responsible = nameMatch[1];
-            }
-
-            const deadlineMatch = line.match(deadlineRegex);
-            const deadline = deadlineMatch ? deadlineMatch[0] : null;
-
-            actionItems.push(`• ${normalizeSentenceEnding(line.trim())} — Responsible: ${responsible}${deadline ? `, Deadline: ${deadline}` : ""}`);
-          }
-        });
-
-        const output = `Meeting Summary\nTitle: ${meetingTitle}\nDate: ${date}\n${participantNames ? `Participants: ${participantNames}` : ""}\n\nKey Points:\n${keyPoints}\n\nDecisions:\n${summarizedDecisions}\n\nAction Items:\n${actionItems.length ? actionItems.join("\n") : "No clear action items mentioned."}`;
-
-        const tagKeywords = ["deadline", "follow-up", "ASAP", "urgent", "action", "task", "important"];
-        const taggedOutput = output.replace(
-          new RegExp(`\\b(${tagKeywords.join("|")})\\b`, "gi"),
-          match => `#${match}`
-        );
-
-        const googleDocUrl = await createGoogleDoc(taggedOutput);
-
-        fs.unlinkSync(audioPath);
-        fs.unlinkSync(wavPath);
-
-        res.json({
-          text: taggedOutput,
-          docLink: googleDocUrl,
-          pdfLink: null,
-          txtLink: null
-        });
-
-      } catch (err) {
-        console.error("❌ Processing Error:", err.message);
-        fs.unlinkSync(audioPath);
-        fs.unlinkSync(wavPath);
-        res.status(500).json({ error: "Failed to transcribe or process." });
-      }
-    })
-    .on("error", (err) => {
-      console.error("❌ FFmpeg Error:", err.message);
-      res.status(500).json({ error: "Audio conversion failed." });
+  try {
+    // Convert to WAV
+    await new Promise((resolve, reject) => {
+      ffmpeg(audioPath)
+        .toFormat("wav")
+        .on("end", resolve)
+        .on("error", reject)
+        .save(wavPath);
     });
+
+    const audioBuffer = fs.readFileSync(wavPath);
+    const response = await axios.post(
+      "https://api-inference.huggingface.co/models/openai/whisper-large-v3",
+      audioBuffer,
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.HF_TOKEN}`,
+          "Content-Type": mime.lookup(wavPath) || "audio/wav",
+        },
+        timeout: 300000,
+      }
+    );
+
+    const rawTranscript = response.data.text || "";
+    const cleaned = rawTranscript
+      .replace(/\[.*?\]/g, "")
+      .replace(/\b(um+|uh+|you know|like)\b/gi, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+
+    const lines = cleaned
+      .replace(/([.?!])\s+(?=[A-Z])/g, "$1|")
+      .split("|")
+      .map((line) => line.trim());
+
+    const meetingTitleLine = lines.find((l) => /meeting/i.test(l)) || "Untitled Meeting";
+    const meetingTitle = meetingTitleLine.replace(/^welcome to\s+/i, "").trim();
+    const date = new Date().toLocaleDateString("en-IN", {
+      day: "numeric", month: "long", year: "numeric",
+    });
+
+    const participants = (cleaned.match(/\b(I am|My name is|This is)\s+([A-Z][a-z]+)/g) || [])
+      .map((p) => p.split(" ").slice(-1)[0])
+      .filter((v, i, a) => a.indexOf(v) === i)
+      .join(", ") || "Unknown";
+
+    const keyPoints = lines
+      .filter((l) => l.length > 20 && !/welcome|hello|hi|thank/i.test(l))
+      .slice(0, 5)
+      .map((l) => `• ${normalizeSentence(l)}`)
+      .join("\n") || "No key points found.";
+
+    const decisions = lines
+      .filter((l) => /(decided|we will|plan to|agreed|going to)/i.test(l))
+      .map((l) => `• ${normalizeSentence(l)}`)
+      .join("\n") || "No decisions mentioned.";
+
+    const actionItems = lines
+      .filter((l) => /\b(will|need to|shall|must|plan to|next step)\b/i.test(l))
+      .map((l) => {
+        const person = (l.match(/\b[A-Z][a-z]+\b/) || [])[0] || "Someone";
+        return `• ${normalizeSentence(l)} — Responsible: ${person}`;
+      })
+      .join("\n") || "No action items identified.";
+
+    const summary = `📌 Meeting Summary
+=========================
+
+📅 Date: ${date}
+📝 Title: ${meetingTitle}
+👥 Participants: ${participants}
+
+🔑 Key Points:
+${keyPoints}
+
+✅ Decisions:
+${decisions}
+
+📌 Action Items:
+${actionItems}
+`;
+
+    // Save as .txt
+    const fileId = `MeetingSummary_${Date.now()}`;
+    const txtPath = path.join(__dirname, "exports", `${fileId}.txt`);
+    fs.writeFileSync(txtPath, summary, "utf8");
+
+    // Save to Google Docs
+    let docUrl = null;
+    try {
+      docUrl = await createGoogleDoc(`Meeting Summary - ${date}`, summary);
+    } catch (err) {
+      console.error("Google Docs export failed:", err.message);
+    }
+
+    fs.unlinkSync(audioPath);
+    fs.unlinkSync(wavPath);
+
+    res.json({
+      text: summary,
+      docLink: docUrl,
+      txtLink: `/exports/${fileId}.txt`,
+    });
+  } catch (error) {
+    console.error("❌ Processing Error:", error.message);
+    fs.unlinkSync(audioPath);
+    if (fs.existsSync(wavPath)) fs.unlinkSync(wavPath);
+    res.status(500).json({ error: "Transcription failed." });
+  }
 });
 
+// SEND SUMMARY VIA EMAIL
 app.post("/send-summary", async (req, res) => {
   const { email, summaryText, docLink } = req.body;
   if (!email || !summaryText || !docLink) {
-    return res.status(400).json({ message: "Missing email, summary, or doc link." });
+    return res.status(400).json({ message: "Missing input" });
   }
 
+  const tempPath = path.join(__dirname, "exports", `email_${Date.now()}.txt`);
+  fs.writeFileSync(tempPath, summaryText, "utf8");
+
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+
   try {
-    const filePath = path.join(__dirname, "temp-summary.txt");
-    fs.writeFileSync(filePath, summaryText, "utf8");
-
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-      }
-    });
-
     await transporter.sendMail({
-      from: `MinuteMate Bot <${process.env.EMAIL_USER}>`,
+      from: `"MinuteMate Bot" <${process.env.EMAIL_USER}>`,
       to: email,
-      subject: "📜 Your Meeting Summary",
-      text: `Here's your meeting summary.\n\nGoogle Doc: ${docLink}\n\n${summaryText}`,
-      attachments: [
-        {
-          filename: "MeetingSummary.txt",
-          path: filePath
-        }
-      ]
+      subject: "📝 Your Meeting Summary",
+      text: `Here is your meeting summary:\n\n${docLink}\n\n${summaryText}`,
+      attachments: [{ filename: "MeetingSummary.txt", path: tempPath }],
     });
 
-    fs.unlinkSync(filePath);
-    res.json({ message: "✅ Summary sent with Google Doc and .txt attached." });
+    fs.unlinkSync(tempPath);
+    res.json({ message: "✅ Email sent." });
   } catch (err) {
-    console.error("❌ Email Send Error:", err);
+    console.error("❌ Email error:", err);
     res.status(500).json({ message: "Failed to send email." });
   }
 });
 
 app.listen(port, () => {
-  console.log(`🚀 Server running on http://localhost:${port}`);
+  console.log(`🚀 Server listening on http://localhost:${port}`);
 });
