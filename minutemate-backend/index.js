@@ -62,6 +62,7 @@ app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
         headers: {
           Authorization: `Bearer ${process.env.HF_TOKEN}`,
           "Content-Type": mime.lookup(wavPath) || "audio/wav",
+          "Accept": "application/json"   
         },
         timeout: 300000,
       }
