@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import { useState, useRef } from 'react';  
+import { useState, useRef, useEffect } from 'react';
 
 const Recorder = () => {
   const [recording, setRecording] = useState(false);
@@ -9,8 +9,27 @@ const Recorder = () => {
   const [docLink, setDocLink] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [authTokens, setAuthTokens] = useState(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const accessToken = params.get("access_token");
+    const refreshToken = params.get("refresh_token");
+
+    if (accessToken) {
+      setAuthTokens({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+      window.history.replaceState({}, document.title, "/"); // clean URL
+    }
+  }, []);
+
+  const handleGoogleLogin = () => {
+    window.location.href = "https://minutemate.onrender.com/auth/google";
+  };
 
   const startRecording = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -50,6 +69,9 @@ const Recorder = () => {
     try {
       const response = await fetch("https://minutemate.onrender.com/transcribe-clean", {
         method: "POST",
+        headers: {
+          Authorization: `Bearer ${authTokens?.access_token || ""}`,
+        },
         body: formData,
       });
 
@@ -90,14 +112,15 @@ const Recorder = () => {
   };
 
   const sendSummaryEmail = async () => {
-    const response = await fetch("http://localhost:5000/send-summary", {
+    const response = await fetch("https://minutemate.onrender.com/send-summary", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        email: "recipient@example.com",
+        email: "recipient@example.com", // <- Replace this with dynamic input if needed
         summaryText: summary,
+        docLink: docLink,
       }),
     });
 
@@ -108,6 +131,14 @@ const Recorder = () => {
   return (
     <div className="text-center p-6 bg-white rounded-xl shadow-lg max-w-xl mx-auto">
       <h2 className="text-2xl font-semibold mb-4">🎧 Audio Recorder</h2>
+
+      {!authTokens ? (
+        <button onClick={handleGoogleLogin} className="bg-blue-500 hover:bg-blue-700 text-white px-4 py-2 rounded mb-4">
+          Login with Google
+        </button>
+      ) : (
+        <p className="text-green-600 font-medium mb-4">✅ Logged in with Google</p>
+      )}
 
       {!recording ? (
         <button onClick={startRecording} className="bg-green-500 hover:bg-green-700 text-white px-4 py-2 rounded">
@@ -191,7 +222,6 @@ const Recorder = () => {
                   >
                     Send via Email
                   </button>
-
                 </div>
               </div>
             )}

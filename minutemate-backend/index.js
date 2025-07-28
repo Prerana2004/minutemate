@@ -8,28 +8,72 @@ const axios = require("axios");
 const mime = require("mime-types");
 const nodemailer = require("nodemailer");
 const path = require("path");
+const session = require("express-session");
+const { google } = require("googleapis");
 const { createGoogleDoc } = require("./googleDocsExport");
 
 const app = express();
-const port = 5000;
+const port = process.env.PORT || 5000;
 
+// Setup CORS and sessions
 app.use(cors({
   origin: "https://minutemate-lyart.vercel.app",
   methods: ["GET", "POST"],
   credentials: true
 }));
 
+app.use(session({
+  secret: "minutemate_secret",
+  resave: false,
+  saveUninitialized: true,
+  cookie: { secure: false } // set true in production with HTTPS
+}));
+
 app.use(express.json());
 const upload = multer({ dest: "uploads/" });
+
+const oauth2Client = new google.auth.OAuth2(
+  process.env.CLIENT_ID,
+  process.env.CLIENT_SECRET,
+  `${process.env.BACKEND_URL}/auth/google/callback`
+);
+
+// OAuth routes
+app.get("/auth/google", (req, res) => {
+  const authUrl = oauth2Client.generateAuthUrl({
+    access_type: "offline",
+    scope: [
+      "https://www.googleapis.com/auth/documents",
+      "https://www.googleapis.com/auth/drive.file"
+    ],
+    prompt: "consent"
+  });
+  res.redirect(authUrl);
+});
+
+app.get("/auth/google/callback", async (req, res) => {
+  try {
+    const { code } = req.query;
+    const { tokens } = await oauth2Client.getToken(code);
+    req.session.tokens = tokens;
+    res.redirect("https://minutemate-lyart.vercel.app?auth=success");
+  } catch (err) {
+    console.error("OAuth Callback Error:", err);
+    res.status(500).send("OAuth failed");
+  }
+});
 
 function normalizeSentenceEnding(line) {
   return line.replace(/\.*$/, ".");
 }
 
+// Transcribe and process route
 app.post("/transcribe-clean", upload.single("file"), (req, res) => {
-  console.log("🟢 Request received at /transcribe-clean");
-  const audioPath = req.file.path;
+  if (!req.session.tokens) {
+    return res.status(401).json({ error: "User not authenticated. Please log in with Google." });
+  }
 
+  const audioPath = req.file.path;
   const validMimeTypes = ["audio/webm", "audio/mpeg", "audio/weba"];
   if (!validMimeTypes.includes(req.file.mimetype)) {
     fs.unlinkSync(audioPath);
@@ -37,13 +81,11 @@ app.post("/transcribe-clean", upload.single("file"), (req, res) => {
   }
 
   const wavPath = `${audioPath}.wav`;
-
   ffmpeg(audioPath)
     .toFormat("wav")
     .save(wavPath)
     .on("end", async () => {
       try {
-        console.log("✅ Audio converted. Sending to Hugging Face...");
         const audioBuffer = fs.readFileSync(wavPath);
         const contentType = mime.lookup(wavPath) || "application/octet-stream";
 
@@ -61,7 +103,6 @@ app.post("/transcribe-clean", upload.single("file"), (req, res) => {
         );
 
         const rawTranscript = response.data.text;
-        console.log("✅ HF API Success:", rawTranscript);
         if (!rawTranscript) throw new Error("Empty response from Whisper API");
 
         const withoutTimestamps = rawTranscript.replace(/\[\d{2}:\d{2}\.\d{3} --> \d{2}:\d{2}\.\d{3}\]/g, "");
@@ -79,9 +120,7 @@ app.post("/transcribe-clean", upload.single("file"), (req, res) => {
         const titleLine = lines.find(line => /(welcome|meeting|planning)/i.test(line) && line.toLowerCase().includes("meeting"));
         const meetingTitle = titleLine ? titleLine.replace(/^welcome to\s+/i, "").trim() : "Untitled Meeting";
 
-        const date = new Date().toLocaleDateString("en-IN", {
-          day: "numeric", month: "long", year: "numeric"
-        });
+        const date = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
 
         const participantMatches = cleanedText.match(/\b(I am|This is|My name is|[A-Z][a-z]+ here)\b.*?\b([A-Z][a-z]+)\b/gi);
         const participantNames = participantMatches
@@ -98,15 +137,10 @@ app.post("/transcribe-clean", upload.single("file"), (req, res) => {
           ? keyPointsFiltered.map(line => `• ${normalizeSentenceEnding(line.trim())}`).join("\n")
           : "No key points mentioned.";
 
-        const decisionIndicators = [
-          "decided", "we will", "we shall", "we plan", "scheduled", "finalized",
-          "going to", "agreed", "will be", "next step is", "our plan is", "we decided", "the decision",
-          "we have decided", "it was decided"
-        ];
-
+        const decisionIndicators = ["decided", "we will", "we plan", "scheduled", "finalized", "going to", "agreed", "next step is"];
         const summarizedDecisionsLines = lines.filter(line => {
           const lc = line.toLowerCase();
-          return decisionIndicators.some(ind => lc.includes(ind)) && !lc.includes("welcome") && !lc.includes("i am") && !lc.includes("thank you");
+          return decisionIndicators.some(ind => lc.includes(ind));
         });
 
         const summarizedDecisions = summarizedDecisionsLines.length
@@ -118,22 +152,18 @@ app.post("/transcribe-clean", upload.single("file"), (req, res) => {
 
         const actionItems = [];
         lines.forEach(line => {
-          const lc = line.toLowerCase();
           if (line.split(" ").length > 30) return;
-
+          const lc = line.toLowerCase();
           if (actionItemRegex.test(lc)) {
             let responsible = "Someone";
-
             if (/^i\b/i.test(line)) {
               responsible = participantNames || "Someone";
             } else {
               const nameMatch = line.match(/\b([A-Z][a-z]+)\s+(will|shall|must|needs to|has to)\b/);
               if (nameMatch) responsible = nameMatch[1];
             }
-
             const deadlineMatch = line.match(deadlineRegex);
             const deadline = deadlineMatch ? deadlineMatch[0] : null;
-
             actionItems.push(`• ${normalizeSentenceEnding(line.trim())} — Responsible: ${responsible}${deadline ? `, Deadline: ${deadline}` : ""}`);
           }
         });
@@ -146,7 +176,7 @@ app.post("/transcribe-clean", upload.single("file"), (req, res) => {
           match => `#${match}`
         );
 
-        const googleDocUrl = await createGoogleDoc(taggedOutput);
+        const googleDocUrl = await createGoogleDoc(taggedOutput, req.session.tokens);
 
         fs.unlinkSync(audioPath);
         fs.unlinkSync(wavPath);
@@ -171,6 +201,7 @@ app.post("/transcribe-clean", upload.single("file"), (req, res) => {
     });
 });
 
+// Email route remains unchanged
 app.post("/send-summary", async (req, res) => {
   const { email, summaryText, docLink } = req.body;
   if (!email || !summaryText || !docLink) {
@@ -195,10 +226,7 @@ app.post("/send-summary", async (req, res) => {
       subject: "📜 Your Meeting Summary",
       text: `Here's your meeting summary.\n\nGoogle Doc: ${docLink}\n\n${summaryText}`,
       attachments: [
-        {
-          filename: "MeetingSummary.txt",
-          path: filePath
-        }
+        { filename: "MeetingSummary.txt", path: filePath }
       ]
     });
 

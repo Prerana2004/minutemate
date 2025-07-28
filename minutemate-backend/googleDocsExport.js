@@ -3,70 +3,31 @@ const fs = require("fs");
 const { google } = require("googleapis");
 
 /**
- * Authorizes the service account using credentials from environment variable.
+ * Creates a Google Doc with the provided summary text using OAuth2 tokens.
+ * @param {string} summaryText - The text to insert into the Google Doc.
+ * @param {object} tokens - The OAuth2 tokens obtained during Google login.
  */
-async function authorize() {
-  const credentials = JSON.parse(process.env.GOOGLE_CREDS);
-
-  console.log("📎 Using service account email:", credentials.client_email); // ✅ Debug email
-
-  const auth = new google.auth.GoogleAuth({
-    credentials,
-    scopes: [
-      "https://www.googleapis.com/auth/documents",
-      "https://www.googleapis.com/auth/drive",
-    ],
-  });
-
-  return await auth.getClient();
-}
-
-/**
- * Lists files owned by the service account — helpful to debug storage/quota issues.
- */
-async function listFilesOwnedByServiceAccount(auth) {
+async function createGoogleDoc(summaryText, tokens) {
   try {
-    const drive = google.drive({ version: "v3", auth });
+    const oAuth2Client = new google.auth.OAuth2(
+      process.env.CLIENT_ID,
+      process.env.CLIENT_SECRET,
+      `${process.env.BACKEND_URL}/auth/google/callback`
+    );
 
-    const res = await drive.files.list({
-      q: "'me' in owners",
-      fields: "files(id, name, size, createdTime)",
-      pageSize: 100,
-    });
+    oAuth2Client.setCredentials(tokens);
 
-    if (res.data.files.length === 0) {
-      console.log("📂 No files owned by the service account.");
-    } else {
-      console.log("📂 Files owned by the service account:");
-      res.data.files.forEach(file => {
-        const size = file.size ? `${(file.size / 1024).toFixed(2)} KB` : "Unknown";
-        console.log(`- ${file.name} (ID: ${file.id}, Size: ${size})`);
-      });
-    }
-  } catch (err) {
-    console.error("⚠️ Failed to list files:", err.message);
-  }
-}
+    const docs = google.docs({ version: "v1", auth: oAuth2Client });
+    const drive = google.drive({ version: "v3", auth: oAuth2Client });
 
-/**
- * Creates a Google Doc with the provided summary text.
- */
-async function createGoogleDoc(summaryText) {
-  try {
-    const auth = await authorize();
-    const docs = google.docs({ version: "v1", auth });
-    const drive = google.drive({ version: "v3", auth });
-
-    // 🔍 Optional: check storage quota
-    await listFilesOwnedByServiceAccount(auth);
-
-    // Step 1: Create an empty Google Doc (no folder = goes to "My Drive" of service account)
+    // Step 1: Create an empty Google Doc in the desired Drive folder
     const file = await drive.files.create({
       requestBody: {
         name: "MinuteMate Meeting Summary",
         mimeType: "application/vnd.google-apps.document",
-        parents: ["1bLlV83fciizW18Knpecwfn9tu-F2l09m"], // ✅ Use new folder ID here
+        parents: ["1bLlV83fciizW18Knpecwfn9tu-F2l09m"], // Your shared folder ID
       },
+      fields: "id",
     });
 
     const documentId = file.data.id;
@@ -86,22 +47,10 @@ async function createGoogleDoc(summaryText) {
       },
     });
 
-    // ✅ Step 3: Give your Gmail access to the doc
-    await drive.permissions.create({
-      fileId: documentId,
-      requestBody: {
-        role: "writer", // or "owner" if within same org (not allowed for Gmail)
-        type: "user",
-        emailAddress: "shisprerana20@gmail.com",
-      },
-      fields: "id",
-    });
-
-    console.log("✅ Summary exported and shared with your Gmail.");
+    console.log("✅ Summary exported to Google Docs using OAuth2.");
     return `https://docs.google.com/document/d/${documentId}/edit`;
-
   } catch (err) {
-    console.error("❌ Google Docs Export Error:", err.message);
+    console.error("❌ Google Docs OAuth Export Error:", err.message);
     throw err;
   }
 }
