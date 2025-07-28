@@ -125,8 +125,14 @@ ${decisions}
 📌 Action Items:
 ${actionItems}\n`;
 
+    // ✅ Ensure "exports/" folder exists
+    const exportDir = path.join(__dirname, "exports");
+    if (!fs.existsSync(exportDir)) {
+      fs.mkdirSync(exportDir, { recursive: true });
+    }
+
     const fileId = `MeetingSummary_${Date.now()}`;
-    const txtPath = path.join(__dirname, "exports", `${fileId}.txt`);
+    const txtPath = path.join(exportDir, `${fileId}.txt`);
     fs.writeFileSync(txtPath, summary, "utf8");
 
     let docUrl = null;
@@ -147,8 +153,8 @@ ${actionItems}\n`;
   } catch (error) {
     console.error("❌ Processing Error:", error.message);
     if (error.response?.data) console.error("🧾 Whisper API Response:", error.response.data);
-    if (req.file?.path) fs.unlinkSync(req.file.path);
-    if (fs.existsSync(`${req.file?.path}.wav`)) fs.unlinkSync(`${req.file.path}.wav`);
+    if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    if (req.file?.path && fs.existsSync(`${req.file.path}.wav`)) fs.unlinkSync(`${req.file.path}.wav`);
     res.status(500).json({ error: "Transcription failed." });
   }
 });
@@ -161,7 +167,13 @@ app.post("/send-summary", async (req, res) => {
     return res.status(400).json({ message: "Missing input" });
   }
 
-  const tempPath = path.join(__dirname, "exports", `email_${Date.now()}.txt`);
+  // ✅ Ensure "exports/" folder exists
+  const exportDir = path.join(__dirname, "exports");
+  if (!fs.existsSync(exportDir)) {
+    fs.mkdirSync(exportDir, { recursive: true });
+  }
+
+  const tempPath = path.join(exportDir, `email_${Date.now()}.txt`);
   fs.writeFileSync(tempPath, summaryText, "utf8");
 
   const transporter = nodemailer.createTransport({
