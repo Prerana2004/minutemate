@@ -23,7 +23,7 @@ const Recorder = () => {
         access_token: accessToken,
         refresh_token: refreshToken,
       });
-      window.history.replaceState({}, document.title, "/"); // clean URL
+      window.history.replaceState({}, document.title, "/");
     }
   }, []);
 
@@ -118,7 +118,7 @@ const Recorder = () => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        email: "recipient@example.com", // <- Replace this with dynamic input if needed
+        email: "recipient@example.com",
         summaryText: summary,
         docLink: docLink,
       }),
@@ -134,7 +134,7 @@ const Recorder = () => {
 
       {!authTokens ? (
         <button onClick={handleGoogleLogin} className="bg-blue-500 hover:bg-blue-700 text-white px-4 py-2 rounded mb-4">
-          Login with Google
+          🔐 Login with Google
         </button>
       ) : (
         <p className="text-green-600 font-medium mb-4">✅ Logged in with Google</p>
