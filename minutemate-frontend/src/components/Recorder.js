@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import { useState, useRef } from 'react';
+import { useState, useRef } from "react";
 
 const Recorder = () => {
   const [recording, setRecording] = useState(false);
@@ -60,8 +60,8 @@ const Recorder = () => {
         return;
       }
 
-      setSummary(data.text || "❌ Transcription failed (no summary returned).");
-      setRawTranscript(data.text || "❌ Full transcript not available.");
+      setSummary(data.summary || "❌ Summary not available.");
+      setRawTranscript(data.transcript || "❌ Transcript not available.");
     } catch (error) {
       console.error("Error uploading/transcribing:", error);
       setSummary("❌ Network or server error occurred.");
@@ -90,11 +90,17 @@ const Recorder = () => {
       <h2 className="text-2xl font-semibold mb-4">🎧 Audio Recorder</h2>
 
       {!recording ? (
-        <button onClick={startRecording} className="bg-green-500 hover:bg-green-700 text-white px-4 py-2 rounded">
+        <button
+          onClick={startRecording}
+          className="bg-green-500 hover:bg-green-700 text-white px-4 py-2 rounded"
+        >
           Start Recording
         </button>
       ) : (
-        <button onClick={stopRecording} className="bg-red-500 hover:bg-red-700 text-white px-4 py-2 rounded">
+        <button
+          onClick={stopRecording}
+          className="bg-red-500 hover:bg-red-700 text-white px-4 py-2 rounded"
+        >
           Stop Recording
         </button>
       )}
@@ -132,11 +138,17 @@ const Recorder = () => {
             {showDropdown && (
               <div className="origin-top-right absolute left-0 mt-0 w-full rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-20">
                 <div className="py-1 flex flex-col">
-                  <button onClick={downloadAsText} className="px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100 w-full">
+                  <button
+                    onClick={downloadAsText}
+                    className="px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100 w-full"
+                  >
                     Download as .txt
                   </button>
 
-                  <button onClick={downloadAsPDF} className="px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100 w-full">
+                  <button
+                    onClick={downloadAsPDF}
+                    className="px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100 w-full"
+                  >
                     Download as PDF
                   </button>
                 </div>
