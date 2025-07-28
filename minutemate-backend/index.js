@@ -30,6 +30,9 @@ app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
   try {
     console.log("Request body:", req.body);
     console.log("Received file:", req.file);
+    console.log("📥 Received file:", req.file);
+    console.log("📍 File saved at (absolute path):", path.resolve(req.file.path));
+
 
     if (!req.file) {
       return res.status(400).json({ error: "No audio file received" });
@@ -176,6 +179,7 @@ app.post("/send-summary", async (req, res) => {
       text: `Here is your meeting summary:\n\n${docLink}\n\n${summaryText}`,
       attachments: [{ filename: "MeetingSummary.txt", path: tempPath }],
     });
+ffmpeg -version
 
     fs.unlinkSync(tempPath);
     res.json({ message: "✅ Email sent." });
