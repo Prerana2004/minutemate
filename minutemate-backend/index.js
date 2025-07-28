@@ -8,26 +8,37 @@ const axios = require("axios");
 const mime = require("mime-types");
 const path = require("path");
 const nodemailer = require("nodemailer");
-const { createGoogleDoc } = require("./googleDocsExport");
+const { exportToGoogleDocs  } = require("./googleDocsExport");
 
 const app = express();
 const port = 5000;
 
-app.use(cors({ origin: "*", methods: ["GET", "POST"] }));
+app.use(cors({
+  origin: process.env.CLIENT_URL,
+  methods: ["GET", "POST"],
+}));
+
 app.use(express.json());
-app.use("/exports", express.static(path.join(__dirname, "exports"))); // ✅ to serve txt file download
+app.use("/exports", express.static(path.join(__dirname, "exports")));
 
 const upload = multer({ dest: "uploads/" });
 
 const normalizeSentence = (line) => line.replace(/\.*$/, ".");
 
-// MAIN TRANSCRIPTION ENDPOINT
+// TRANSCRIBE ROUTE
 app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
-  const audioPath = req.file.path;
-  const wavPath = `${audioPath}.wav`;
-
   try {
-    // Convert to WAV
+    console.log("Request body:", req.body);
+    console.log("Received file:", req.file);
+
+    if (!req.file) {
+      return res.status(400).json({ error: "No audio file received" });
+    }
+
+    const audioPath = req.file.path;
+    const wavPath = `${audioPath}.wav`;
+
+    // Convert to WAV using FFmpeg
     await new Promise((resolve, reject) => {
       ffmpeg(audioPath)
         .toFormat("wav")
@@ -36,6 +47,7 @@ app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
         .save(wavPath);
     });
 
+    // Send to Whisper
     const audioBuffer = fs.readFileSync(wavPath);
     const response = await axios.post(
       "https://api-inference.huggingface.co/models/openai/whisper-large-v3",
@@ -108,19 +120,19 @@ ${decisions}
 ${actionItems}
 `;
 
-    // Save as .txt
     const fileId = `MeetingSummary_${Date.now()}`;
     const txtPath = path.join(__dirname, "exports", `${fileId}.txt`);
     fs.writeFileSync(txtPath, summary, "utf8");
 
-    // Save to Google Docs
+    // Try to create a Google Doc
     let docUrl = null;
     try {
-      docUrl = await createGoogleDoc(`Meeting Summary - ${date}`, summary);
+      docUrl = await exportToGoogleDocs(summary);
     } catch (err) {
       console.error("Google Docs export failed:", err.message);
     }
 
+    // Clean up
     fs.unlinkSync(audioPath);
     fs.unlinkSync(wavPath);
 
@@ -131,8 +143,8 @@ ${actionItems}
     });
   } catch (error) {
     console.error("❌ Processing Error:", error.message);
-    fs.unlinkSync(audioPath);
-    if (fs.existsSync(wavPath)) fs.unlinkSync(wavPath);
+    if (req.file?.path) fs.unlinkSync(req.file.path);
+    if (fs.existsSync(`${req.file?.path}.wav`)) fs.unlinkSync(`${req.file.path}.wav`);
     res.status(500).json({ error: "Transcription failed." });
   }
 });
@@ -140,6 +152,7 @@ ${actionItems}
 // SEND SUMMARY VIA EMAIL
 app.post("/send-summary", async (req, res) => {
   const { email, summaryText, docLink } = req.body;
+
   if (!email || !summaryText || !docLink) {
     return res.status(400).json({ message: "Missing input" });
   }
@@ -172,6 +185,7 @@ app.post("/send-summary", async (req, res) => {
   }
 });
 
+// START SERVER
 app.listen(port, () => {
   console.log(`🚀 Server listening on http://localhost:${port}`);
 });
