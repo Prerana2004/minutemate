@@ -1,5 +1,6 @@
+// Recorder.js (Frontend without OAuth)
 import { jsPDF } from "jspdf";
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 
 const Recorder = () => {
   const [recording, setRecording] = useState(false);
@@ -9,27 +10,8 @@ const Recorder = () => {
   const [docLink, setDocLink] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [authTokens, setAuthTokens] = useState(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const accessToken = params.get("access_token");
-    const refreshToken = params.get("refresh_token");
-
-    if (accessToken) {
-      setAuthTokens({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-      });
-      window.history.replaceState({}, document.title, "/");
-    }
-  }, []);
-
-  const handleGoogleLogin = () => {
-    window.location.href = "https://minutemate.onrender.com/auth/google";
-  };
 
   const startRecording = async () => {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -69,9 +51,6 @@ const Recorder = () => {
     try {
       const response = await fetch("https://minutemate.onrender.com/transcribe-clean", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${authTokens?.access_token || ""}`,
-        },
         body: formData,
       });
 
@@ -132,14 +111,6 @@ const Recorder = () => {
     <div className="text-center p-6 bg-white rounded-xl shadow-lg max-w-xl mx-auto">
       <h2 className="text-2xl font-semibold mb-4">🎧 Audio Recorder</h2>
 
-      {!authTokens ? (
-        <button onClick={handleGoogleLogin} className="bg-blue-500 hover:bg-blue-700 text-white px-4 py-2 rounded mb-4">
-          🔐 Login with Google
-        </button>
-      ) : (
-        <p className="text-green-600 font-medium mb-4">✅ Logged in with Google</p>
-      )}
-
       {!recording ? (
         <button onClick={startRecording} className="bg-green-500 hover:bg-green-700 text-white px-4 py-2 rounded">
           Start Recording
@@ -154,11 +125,7 @@ const Recorder = () => {
         <div className="mt-4">
           <audio controls src={audioURL}></audio>
           <p className="text-sm text-gray-500 mt-2">
-            {isUploading
-              ? "🔄 Transcribing..."
-              : summary === "Recording complete. Transcribing..."
-              ? summary
-              : "Recording available."}
+            {isUploading ? "🔄 Transcribing..." : "Recording available."}
           </p>
         </div>
       )}
@@ -172,7 +139,7 @@ const Recorder = () => {
 
       {summary && (
         <div className="mt-6 bg-gray-100 p-4 rounded text-left shadow whitespace-pre-wrap">
-          <h3 className="font-bold mb-2">📝 Meeting Summary:</h3>
+          <h3 className="font-bold mb-2">🖍 Meeting Summary:</h3>
           <pre className="text-gray-800 whitespace-pre-wrap break-words">{summary}</pre>
 
           <div className="mt-4 relative inline-block text-left w-full">
@@ -186,40 +153,22 @@ const Recorder = () => {
 
             {showDropdown && (
               <div className="origin-top-right absolute left-0 mt-0 w-full rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-20">
-                <div className="py-1 flex flex-col" role="menu" aria-orientation="vertical">
-                  <button
-                    onClick={downloadAsText}
-                    className="px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100 w-full"
-                    role="menuitem"
-                  >
+                <div className="py-1 flex flex-col">
+                  <button onClick={downloadAsText} className="px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100 w-full">
                     Download as .txt
                   </button>
 
-                  <button
-                    onClick={downloadAsPDF}
-                    className="px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100 w-full"
-                    role="menuitem"
-                  >
+                  <button onClick={downloadAsPDF} className="px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100 w-full">
                     Download as PDF
                   </button>
 
                   {docLink && (
-                    <a
-                      href={docLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-4 py-2 text-sm text-left text-blue-600 hover:bg-gray-100 w-full block"
-                      role="menuitem"
-                    >
+                    <a href={docLink} target="_blank" rel="noopener noreferrer" className="px-4 py-2 text-sm text-left text-blue-600 hover:bg-gray-100 w-full block">
                       View in Google Docs
                     </a>
                   )}
 
-                  <button
-                    onClick={sendSummaryEmail}
-                    className="px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100 w-full"
-                    role="menuitem"
-                  >
+                  <button onClick={sendSummaryEmail} className="px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100 w-full">
                     Send via Email
                   </button>
                 </div>

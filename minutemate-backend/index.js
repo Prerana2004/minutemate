@@ -8,12 +8,10 @@ const axios = require("axios");
 const mime = require("mime-types");
 const nodemailer = require("nodemailer");
 const path = require("path");
-const session = require("express-session");
-const { google } = require("googleapis");
 const { createGoogleDoc } = require("./googleDocsExport");
 
 const app = express();
-const port = process.env.PORT || 5000;
+const port = 5000;
 
 app.use(cors({
   origin: "https://minutemate-lyart.vercel.app",
@@ -21,73 +19,17 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(session({
-  secret: "minutemate_secret",
-  resave: false,
-  saveUninitialized: true,
-  cookie: { secure: false }
-}));
-
 app.use(express.json());
 const upload = multer({ dest: "uploads/" });
-
-const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  process.env.GOOGLE_REDIRECT_URI
-);
-
-app.get("/auth/google", (req, res) => {
-  const authUrl = oauth2Client.generateAuthUrl({
-    access_type: "offline",
-    scope: [
-      "https://www.googleapis.com/auth/documents",
-      "https://www.googleapis.com/auth/drive.file",
-      "https://www.googleapis.com/auth/userinfo.email",
-      "https://www.googleapis.com/auth/userinfo.profile"
-    ],
-    prompt: "consent",
-    client_id: process.env.GOOGLE_CLIENT_ID
-  });
-  res.redirect(authUrl);
-});
-
-
-app.get("/auth/google/callback", async (req, res) => {
-  try {
-    const { code } = req.query;
-    const { tokens } = await oauth2Client.getToken(code);
-    oauth2Client.setCredentials(tokens);
-
-    const oauth2 = google.oauth2({ version: "v2", auth: oauth2Client });
-    const { data: userInfo } = await oauth2.userinfo.get();
-
-    req.session.tokens = tokens;
-    req.session.user = {
-      email: userInfo.email,
-      name: userInfo.name,
-    };
-
-    res.redirect(`https://minutemate-lyart.vercel.app?access_token=${tokens.access_token}&refresh_token=${tokens.refresh_token || ""}`);
-  } catch (err) {
-    console.error("OAuth Callback Error:", err);
-    res.status(500).send("OAuth failed");
-  }
-});
 
 function normalizeSentenceEnding(line) {
   return line.replace(/\.*$/, ".");
 }
 
-app.post("/transcribe-clean", upload.single("file"), async (req, res) => {
-  const bearerHeader = req.headers.authorization;
-  const accessToken = bearerHeader?.split(" ")[1];
-
-  if (!accessToken && !req.session.tokens) {
-    return res.status(401).json({ error: "User not authenticated. Please log in with Google." });
-  }
-
+app.post("/transcribe-clean", upload.single("file"), (req, res) => {
+  console.log("🟢 Request received at /transcribe-clean");
   const audioPath = req.file.path;
+
   const validMimeTypes = ["audio/webm", "audio/mpeg", "audio/weba"];
   if (!validMimeTypes.includes(req.file.mimetype)) {
     fs.unlinkSync(audioPath);
@@ -95,11 +37,13 @@ app.post("/transcribe-clean", upload.single("file"), async (req, res) => {
   }
 
   const wavPath = `${audioPath}.wav`;
+
   ffmpeg(audioPath)
     .toFormat("wav")
     .save(wavPath)
     .on("end", async () => {
       try {
+        console.log("✅ Audio converted. Sending to Hugging Face...");
         const audioBuffer = fs.readFileSync(wavPath);
         const contentType = mime.lookup(wavPath) || "application/octet-stream";
 
@@ -117,9 +61,11 @@ app.post("/transcribe-clean", upload.single("file"), async (req, res) => {
         );
 
         const rawTranscript = response.data.text;
+        console.log("✅ HF API Success:", rawTranscript);
         if (!rawTranscript) throw new Error("Empty response from Whisper API");
 
-        const cleanedText = rawTranscript
+        const withoutTimestamps = rawTranscript.replace(/\[\d{2}:\d{2}\.\d{3} --> \d{2}:\d{2}\.\d{3}\]/g, "");
+        const cleanedText = withoutTimestamps
           .replace(/\b(um|uh|like|you know)\b/gi, "")
           .replace(/\s{2,}/g, " ")
           .trim();
@@ -130,22 +76,88 @@ app.post("/transcribe-clean", upload.single("file"), async (req, res) => {
           .map(line => line.trim())
           .filter(line => line.length > 0);
 
-        const titleLine = lines.find(line => /(welcome|meeting|planning)/i.test(line));
-        const meetingTitle = titleLine || "Untitled Meeting";
-        const date = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+        const titleLine = lines.find(line => /(welcome|meeting|planning)/i.test(line) && line.toLowerCase().includes("meeting"));
+        const meetingTitle = titleLine ? titleLine.replace(/^welcome to\s+/i, "").trim() : "Untitled Meeting";
 
-        const keyPoints = lines.filter(l => l.length > 30).slice(0, 5).map(l => `• ${normalizeSentenceEnding(l)}`).join("\n") || "No key points found.";
-        const decisions = lines.filter(l => /(decided|plan|agreed|schedule|finalize)/i.test(l)).map(l => `• ${normalizeSentenceEnding(l)}`).join("\n") || "No decisions identified.";
-        const actionItems = lines.filter(l => /(will|shall|must|plan to)/i.test(l)).slice(0, 5).map(l => `• ${normalizeSentenceEnding(l)}`).join("\n") || "No action items identified.";
+        const date = new Date().toLocaleDateString("en-IN", {
+          day: "numeric", month: "long", year: "numeric"
+        });
 
-        const summary = `Meeting Summary\nTitle: ${meetingTitle}\nDate: ${date}\n\nKey Points:\n${keyPoints}\n\nDecisions:\n${decisions}\n\nAction Items:\n${actionItems}`;
+        const participantMatches = cleanedText.match(/\b(I am|This is|My name is|[A-Z][a-z]+ here)\b.*?\b([A-Z][a-z]+)\b/gi);
+        const participantNames = participantMatches
+          ? participantMatches.map(p => p.split(" ").slice(-1)[0]).join(", ")
+          : null;
 
-        const googleDocUrl = await createGoogleDoc(summary, accessToken || req.session.tokens);
+        const ignorePhrases = ["welcome", "hello", "hi", "i am", "this is", "thank you", "everyone", "good morning"];
+        const keyPointsFiltered = lines.filter(line => {
+          const lc = line.toLowerCase();
+          return !ignorePhrases.some(phrase => lc.includes(phrase)) && line.length > 20 && !/\b(i am|this is)\b/i.test(line);
+        }).slice(0, 5);
+
+        const keyPoints = keyPointsFiltered.length
+          ? keyPointsFiltered.map(line => `• ${normalizeSentenceEnding(line.trim())}`).join("\n")
+          : "No key points mentioned.";
+
+        const decisionIndicators = [
+          "decided", "we will", "we shall", "we plan", "scheduled", "finalized",
+          "going to", "agreed", "will be", "next step is", "our plan is", "we decided", "the decision",
+          "we have decided", "it was decided"
+        ];
+
+        const summarizedDecisionsLines = lines.filter(line => {
+          const lc = line.toLowerCase();
+          return decisionIndicators.some(ind => lc.includes(ind)) && !lc.includes("welcome") && !lc.includes("i am") && !lc.includes("thank you");
+        });
+
+        const summarizedDecisions = summarizedDecisionsLines.length
+          ? summarizedDecisionsLines.map(line => `• ${normalizeSentenceEnding(line.trim())}`).join("\n")
+          : "No clear decisions mentioned.";
+
+        const actionItemRegex = /\b(will|need to|going to|have to|must|shall|plan to|next step is)\b/i;
+        const deadlineRegex = /\b(by|on|before|after)\s+((next\s+)?(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)|\d{1,2}(st|nd|rd|th)?\s+\w+|next week|tomorrow|today|this week|end of day)\b/i;
+
+        const actionItems = [];
+        lines.forEach(line => {
+          const lc = line.toLowerCase();
+          if (line.split(" ").length > 30) return;
+
+          if (actionItemRegex.test(lc)) {
+            let responsible = "Someone";
+
+            if (/^i\b/i.test(line)) {
+              responsible = participantNames || "Someone";
+            } else {
+              const nameMatch = line.match(/\b([A-Z][a-z]+)\s+(will|shall|must|needs to|has to)\b/);
+              if (nameMatch) responsible = nameMatch[1];
+            }
+
+            const deadlineMatch = line.match(deadlineRegex);
+            const deadline = deadlineMatch ? deadlineMatch[0] : null;
+
+            actionItems.push(`• ${normalizeSentenceEnding(line.trim())} — Responsible: ${responsible}${deadline ? `, Deadline: ${deadline}` : ""}`);
+          }
+        });
+
+        const output = `Meeting Summary\nTitle: ${meetingTitle}\nDate: ${date}\n${participantNames ? `Participants: ${participantNames}` : ""}\n\nKey Points:\n${keyPoints}\n\nDecisions:\n${summarizedDecisions}\n\nAction Items:\n${actionItems.length ? actionItems.join("\n") : "No clear action items mentioned."}`;
+
+        const tagKeywords = ["deadline", "follow-up", "ASAP", "urgent", "action", "task", "important"];
+        const taggedOutput = output.replace(
+          new RegExp(`\\b(${tagKeywords.join("|")})\\b`, "gi"),
+          match => `#${match}`
+        );
+
+        const googleDocUrl = await createGoogleDoc(taggedOutput);
 
         fs.unlinkSync(audioPath);
         fs.unlinkSync(wavPath);
 
-        res.json({ text: summary, docLink: googleDocUrl, rawTranscript });
+        res.json({
+          text: taggedOutput,
+          docLink: googleDocUrl,
+          pdfLink: null,
+          txtLink: null
+        });
+
       } catch (err) {
         console.error("❌ Processing Error:", err.message);
         fs.unlinkSync(audioPath);
@@ -183,7 +195,10 @@ app.post("/send-summary", async (req, res) => {
       subject: "📜 Your Meeting Summary",
       text: `Here's your meeting summary.\n\nGoogle Doc: ${docLink}\n\n${summaryText}`,
       attachments: [
-        { filename: "MeetingSummary.txt", path: filePath }
+        {
+          filename: "MeetingSummary.txt",
+          path: filePath
+        }
       ]
     });
 
