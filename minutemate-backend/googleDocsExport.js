@@ -3,7 +3,7 @@ const { GoogleAuth } = require("google-auth-library");
 
 const createGoogleDoc = async (title, content) => {
   const auth = new google.auth.GoogleAuth({
-    credentials: JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT),
+    credentials: JSON.parse(process.env.GOOGLE_CREDS),
     scopes: [
       "https://www.googleapis.com/auth/documents",
       "https://www.googleapis.com/auth/drive",
