@@ -15,8 +15,19 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 const app = express();
 const port = 5000;
 
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://minutemate-lyart.vercel.app"
+];
+
 app.use(cors({
-  origin: process.env.CLIENT_URL,
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
   methods: ["GET", "POST"],
 }));
 
