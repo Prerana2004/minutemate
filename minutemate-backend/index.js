@@ -8,6 +8,7 @@ const axios = require("axios");
 const mime = require("mime-types");
 const path = require("path");
 const nodemailer = require("nodemailer");
+const PDFDocument = require("pdfkit"); 
 const ffmpegPath = require("ffmpeg-static");
 ffmpeg.setFfmpegPath(ffmpegPath);
 
@@ -133,10 +134,17 @@ ${actionItems}\n`;
     fs.writeFileSync(txtPath, summary, "utf8");
 
     const pdfPath = path.join(exportDir, `${fileId}.pdf`);
-    const doc = new jsPDF();
-    const linesSplit = doc.splitTextToSize(summary, 180);
-    doc.text(linesSplit, 10, 10);
-    doc.save(pdfPath);
+    const doc = new PDFDocument();
+
+    const writeStream = fs.createWriteStream(pdfPath);
+    doc.pipe(writeStream);
+    doc.fontSize(12).text(summary, { align: 'left' });
+    doc.end();
+
+    await new Promise((resolve, reject) => {
+      writeStream.on("finish", resolve);
+      writeStream.on("error", reject);
+    });
 
     fs.unlinkSync(audioPath);
     fs.unlinkSync(wavPath);
