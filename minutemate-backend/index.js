@@ -7,9 +7,9 @@ const ffmpeg = require("fluent-ffmpeg");
 const axios = require("axios");
 const mime = require("mime-types");
 const path = require("path");
-const nodemailer = require("nodemailer");
-const PDFDocument = require("pdfkit"); 
+const PDFDocument = require("pdfkit");
 const ffmpegPath = require("ffmpeg-static");
+
 ffmpeg.setFfmpegPath(ffmpegPath);
 
 const app = express();
@@ -85,6 +85,8 @@ app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
       .replace(/\s{2,}/g, " ")
       .trim();
 
+    console.log("Transcript:", cleaned); // ✅ Log final transcript here
+
     const lines = cleaned
       .replace(/([.?!])\s+(?=[A-Z])/g, "$1|")
       .split("|")
@@ -120,20 +122,7 @@ app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
       })
       .join("\n") || "No action items identified.";
 
-    const summary = `📌 Meeting Summary\n=========================
-
-📅 Date: ${date}
-📝 Title: ${meetingTitle}
-👥 Participants: ${participants}
-
-🔑 Key Points:
-${keyPoints}
-
-✅ Decisions:
-${decisions}
-
-📌 Action Items:
-${actionItems}\n`;
+    const summary = `📌 Meeting Summary\n=========================\n\n📅 Date: ${date}\n📝 Title: ${meetingTitle}\n👥 Participants: ${participants}\n\n🔑 Key Points:\n${keyPoints}\n\n✅ Decisions:\n${decisions}\n\n📌 Action Items:\n${actionItems}\n`;
 
     const exportDir = path.join(__dirname, "exports");
     if (!fs.existsSync(exportDir)) {
@@ -172,47 +161,6 @@ ${actionItems}\n`;
     if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     if (req.file?.path && fs.existsSync(`${req.file.path}.wav`)) fs.unlinkSync(`${req.file.path}.wav`);
     res.status(500).json({ error: "Transcription failed." });
-  }
-});
-
-// SEND SUMMARY VIA EMAIL
-app.post("/send-summary", async (req, res) => {
-  const { email, summaryText } = req.body;
-
-  if (!email || !summaryText) {
-    return res.status(400).json({ message: "Missing input" });
-  }
-
-  const exportDir = path.join(__dirname, "exports");
-  if (!fs.existsSync(exportDir)) {
-    fs.mkdirSync(exportDir, { recursive: true });
-  }
-
-  const tempPath = path.join(exportDir, `email_${Date.now()}.txt`);
-  fs.writeFileSync(tempPath, summaryText, "utf8");
-
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  });
-
-  try {
-    await transporter.sendMail({
-      from: `"MinuteMate Bot" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: "📝 Your Meeting Summary",
-      text: `Here is your meeting summary attached.`,
-      attachments: [{ filename: "MeetingSummary.txt", path: tempPath }],
-    });
-
-    fs.unlinkSync(tempPath);
-    res.json({ message: "✅ Email sent." });
-  } catch (err) {
-    console.error("❌ Email error:", err);
-    res.status(500).json({ message: "Failed to send email." });
   }
 });
 
