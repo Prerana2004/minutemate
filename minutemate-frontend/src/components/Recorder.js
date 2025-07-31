@@ -101,10 +101,9 @@ const Recorder = () => {
   };
 
   return (
-    <div className="text-center p-6 bg-white rounded-xl shadow-lg max-w-xl mx-auto">
+    <div className="text-center p-6 bg-white rounded-xl shadow-lg max-w-xl mx-auto mt-10">
       <h2 className="text-2xl font-semibold mb-4">🎧 Audio Recorder</h2>
 
-      {/* 🎙️ Recording or Upload Button */}
       <div className="flex justify-center gap-4 flex-wrap mb-4">
         {!recording && !isUploading && (
           <>
@@ -116,7 +115,7 @@ const Recorder = () => {
             </button>
 
             <label className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded cursor-pointer">
-              Choose & Upload Audio
+              Upload Audio
               <input
                 type="file"
                 accept="audio/*"
@@ -137,17 +136,15 @@ const Recorder = () => {
         )}
       </div>
 
-      {/* 🎵 Audio Player */}
       {audioURL && (
         <div className="mt-4">
-          <audio controls src={audioURL} className="w-full"></audio>
+          <audio controls src={audioURL} className="w-full" />
           <p className="text-sm text-gray-500 mt-2">
             {isUploading ? "🔄 Transcribing..." : "Recording available."}
           </p>
         </div>
       )}
 
-      {/* 🗣 Full Transcript */}
       {rawTranscript && (
         <div className="mt-6 bg-gray-100 p-4 rounded text-left shadow whitespace-pre-wrap">
           <h3 className="font-bold mb-2">🗣 Full Transcript:</h3>
@@ -155,7 +152,6 @@ const Recorder = () => {
         </div>
       )}
 
-      {/* 🖍 Summary + Download */}
       {summary && (
         <div className="mt-6 bg-gray-100 p-4 rounded text-left shadow whitespace-pre-wrap">
           <h3 className="font-bold mb-2">🖍 Meeting Summary:</h3>
