@@ -162,6 +162,7 @@ ${actionItems}\n`;
 
     res.json({
       text: summary,
+      transcript: cleaned,
       txtLink: `/exports/${fileId}.txt`,
       pdfLink: `/exports/${fileId}.pdf`,
     });
