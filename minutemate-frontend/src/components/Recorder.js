@@ -111,58 +111,69 @@ const Recorder = () => {
     <div className="text-center p-6 bg-white rounded-xl shadow-lg max-w-xl mx-auto">
       <h2 className="text-2xl font-semibold mb-4">🎧 Audio Recorder</h2>
 
-      {!recording ? (
-        <button
-          onClick={startRecording}
-          className="bg-green-500 hover:bg-green-700 text-white px-4 py-2 rounded"
-        >
-          Start Recording
-        </button>
-      ) : (
-        <button
-          onClick={stopRecording}
-          className="bg-red-500 hover:bg-red-700 text-white px-4 py-2 rounded"
-        >
-          Stop Recording
-        </button>
-      )}
+      {/* 🎙️ Record Button */}
+      <div className="flex justify-center gap-4 flex-wrap mb-4">
+        {!recording ? (
+          <button
+            onClick={startRecording}
+            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
+          >
+            Start Recording
+          </button>
+        ) : (
+          <button
+            onClick={stopRecording}
+            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
+          >
+            Stop Recording
+          </button>
+        )}
 
-      <div className="mt-6">
-        <input
-          type="file"
-          accept="audio/*"
-          onChange={handleFileChange}
-          className="mb-2"
-        />
+        {/* 📁 Upload Button */}
+        <label className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded cursor-pointer">
+          Upload Audio
+          <input
+            type="file"
+            accept="audio/*"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+        </label>
+
         <button
           onClick={handleFileUpload}
           disabled={!selectedFile}
-          className="bg-blue-500 hover:bg-blue-700 text-white px-4 py-2 rounded disabled:opacity-50"
+          className={`${
+            selectedFile ? "bg-indigo-500 hover:bg-indigo-600" : "bg-gray-400 cursor-not-allowed"
+          } text-white px-4 py-2 rounded transition`}
         >
           Upload & Transcribe
         </button>
       </div>
 
+      {/* 🎵 Audio Player */}
       {audioURL && (
         <div className="mt-4">
-          <audio controls src={audioURL}></audio>
+          <audio controls src={audioURL} className="w-full"></audio>
           <p className="text-sm text-gray-500 mt-2">
             {isUploading ? "🔄 Transcribing..." : "Recording available."}
           </p>
         </div>
       )}
 
+      {/* 🗣 Full Transcript */}
       {rawTranscript && (
         <div className="mt-6 bg-gray-100 p-4 rounded text-left shadow whitespace-pre-wrap">
           <h3 className="font-bold mb-2">🗣 Full Transcript:</h3>
-          <pre className="text-gray-800 whitespace-pre-wrap break-words">{rawTranscript}</pre>
+          <pre className="text-gray-800 break-words">{rawTranscript}</pre>
         </div>
       )}
 
+      {/* 🖍 Summary + Download */}
       {summary && (
         <div className="mt-6 bg-gray-100 p-4 rounded text-left shadow whitespace-pre-wrap">
           <h3 className="font-bold mb-2">🖍 Meeting Summary:</h3>
-          <pre className="text-gray-800 whitespace-pre-wrap break-words">{summary}</pre>
+          <pre className="text-gray-800 break-words">{summary}</pre>
 
           <div className="mt-4 relative inline-block text-left w-full">
             <button
@@ -174,7 +185,7 @@ const Recorder = () => {
             </button>
 
             {showDropdown && (
-              <div className="origin-top-right absolute left-0 mt-0 w-full rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-20">
+              <div className="origin-top-right absolute left-0 mt-1 w-full rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-20">
                 <div className="py-1 flex flex-col">
                   <button
                     onClick={downloadAsText}
