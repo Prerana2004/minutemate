@@ -9,8 +9,8 @@ export default function Home() {
   const [showRecorder, setShowRecorder] = useState(true);
   const [uploadedFile, setUploadedFile] = useState(null);
   const [transcription, setTranscription] = useState("");
+  const [summary, setSummary] = useState("");
   const [audioURL, setAudioURL] = useState(null);
-  const [docLink, setDocLink] = useState("");
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -27,27 +27,24 @@ export default function Home() {
     if (!uploadedFile) return;
 
     setTranscription("Uploading file and transcribing...");
+    setSummary("");
     setAudioURL(URL.createObjectURL(uploadedFile));
-    setDocLink("");
 
     const formData = new FormData();
-    formData.append("file", uploadedFile);
+    formData.append("audio", uploadedFile); // backend expects "audio"
 
     try {
-      const response = await fetch("http://localhost:5000/transcribe-clean", {
+      const response = await fetch("https://minutemate.onrender.com/transcribe-clean", {
         method: "POST",
         body: formData,
       });
 
       const data = await response.json();
-      if (data.text) {
-        setTranscription(data.text);
+      if (data.transcript) {
+        setTranscription(data.transcript);
+        setSummary(data.summary || "");
       } else {
         setTranscription("Transcription failed.");
-      }
-
-      if (data.docLink) {
-        setDocLink(data.docLink);
       }
     } catch (err) {
       console.error("❌ Upload or transcription failed:", err.message);
@@ -59,7 +56,6 @@ export default function Home() {
     <>
       <Hero />
 
-      {/* Recorder and Upload Side-by-Side */}
       <div className="flex flex-col md:flex-row gap-6 mt-10 w-full max-w-5xl justify-center items-start mx-auto px-4">
         {/* Recorder Panel */}
         <AnimatePresence>
@@ -116,19 +112,15 @@ export default function Home() {
 
           {transcription && (
             <div className="mt-6 bg-gray-100 p-4 rounded text-left shadow whitespace-pre-wrap">
-              <h3 className="font-bold mb-2">📄 Transcription:</h3>
-              <pre className="text-gray-800 whitespace-pre-wrap break-words">{transcription}</pre>
+              <h3 className="font-bold mb-2">📄 Cleaned Transcript:</h3>
+              <pre className="text-gray-800 break-words">{transcription}</pre>
+            </div>
+          )}
 
-              {docLink && (
-                <a
-                  href={docLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block mt-4 text-blue-600 hover:underline"
-                >
-                  View in Google Docs
-                </a>
-              )}
+          {summary && (
+            <div className="mt-6 bg-yellow-50 p-4 rounded text-left shadow whitespace-pre-wrap">
+              <h3 className="font-bold mb-2">📝 Meeting Summary:</h3>
+              <pre className="text-gray-900 break-words">{summary}</pre>
             </div>
           )}
         </motion.div>
