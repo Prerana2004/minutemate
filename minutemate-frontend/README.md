@@ -6,10 +6,11 @@ MinuteMate is a modern web app that records or uploads meeting audio, transcribe
 
 ## ✨ Features
 
-- 🎤 **Record or Upload Audio** – Capture meetings live or upload `.webm` / `.mp3` files.
+- 🎤 **Record or Upload Audio** – Capture meetings live or upload `.webm` / `.mp3` / `.weba` files.
 - 🧠 **AI-Powered Transcription** – Uses **Hugging Face Whisper API** for accurate speech-to-text.
 - 📝 **Automatic Summarization** – Extracts **key points**, **decisions**, and **action items** from the transcript.
-- 📄 **Download Options** – Save the summary as `.txt`, `.pdf`, or export directly to **Google Docs**.
+- 👤 **Smart Responsibility Detection** – Identifies who is responsible for which task based on speaker mentions like "I will", names, etc.
+- 📄 **Download Options** – Save the summary as `.txt`, `.pdf`.
 - ⚡ **Modern UI** – Built with **React** and styled using **Tailwind CSS**.
 
 ---
@@ -21,7 +22,7 @@ MinuteMate is a modern web app that records or uploads meeting audio, transcribe
 | Frontend     | React, Tailwind CSS, jsPDF         |
 | Backend      | Node.js, Express, Multer, FFmpeg   |
 | Transcription| Hugging Face Whisper API           |
-| Export       | Google Docs API (Optional)         |
+| Export       | PDFKit or .txt |
 
 ---
 
@@ -87,7 +88,6 @@ minutemate/
 
 4. **Update backend URL in code** (if not already):
    ```js
-   // in your fetch request
    const response = await fetch("https://minutemate.onrender.com/transcribe-clean", { ... });
    ```
 
@@ -103,7 +103,7 @@ minutemate/
    - Full meeting transcript
    - Key points
    - Action items with responsible persons
-4. Download summary as `.txt`, `.pdf`, or export to Google Docs.
+4. Download summary as `.txt` or `pdf`.
 
 ---
 
@@ -117,17 +117,17 @@ Participants: Prerna
 
 Key Points:
 • We have completed over 70% of our project.
-• The #deadline for submitting the prototype is Friday.
+• The deadline for submitting the prototype is Friday.
 • We have decided to launch the project by Sunday.
-• It's really #urgent and we need to finish it #asap.
-• Raj will take #action on the feedback.
+• It's really urgent and we need to finish it ASAP.
+• Raj will take action on the feedback.
 
 Decisions:
 • We have decided to launch the project by Sunday.
 
 Action Items:
-• It's really #urgent and we need to finish it #asap — Responsible: Someone
-• Raj will take #action on the feedback — Responsible: Raj
+• It's really urgent and we need to finish it ASAP — Responsible: Prerna
+• Raj will take action on the feedback — Responsible: Raj
 ```
 
 ---
