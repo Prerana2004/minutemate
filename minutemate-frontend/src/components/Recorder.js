@@ -8,7 +8,6 @@ const Recorder = () => {
   const [rawTranscript, setRawTranscript] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [selectedFile, setSelectedFile] = useState(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
 
@@ -70,23 +69,17 @@ const Recorder = () => {
     setIsUploading(false);
   };
 
-  const handleFileChange = (e) => {
-    setSelectedFile(e.target.files[0]);
-    setSummary("");
-    setRawTranscript("");
-    setShowDropdown(false);
-  };
-
-  const handleFileUpload = async () => {
-    if (!selectedFile) return;
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
 
     const formData = new FormData();
-    formData.append("audio", selectedFile);
-
-    const blobURL = URL.createObjectURL(selectedFile);
+    formData.append("audio", file);
+    const blobURL = URL.createObjectURL(file);
     setAudioURL(blobURL);
     setSummary("Uploading file. Transcribing...");
     setRawTranscript("");
+    setShowDropdown(false);
 
     await uploadAndTranscribe(formData);
   };
@@ -111,16 +104,30 @@ const Recorder = () => {
     <div className="text-center p-6 bg-white rounded-xl shadow-lg max-w-xl mx-auto">
       <h2 className="text-2xl font-semibold mb-4">🎧 Audio Recorder</h2>
 
-      {/* 🎙️ Record Button */}
+      {/* 🎙️ Recording or Upload Button */}
       <div className="flex justify-center gap-4 flex-wrap mb-4">
-        {!recording ? (
-          <button
-            onClick={startRecording}
-            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
-          >
-            Start Recording
-          </button>
-        ) : (
+        {!recording && !isUploading && (
+          <>
+            <button
+              onClick={startRecording}
+              className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
+            >
+              Start Recording
+            </button>
+
+            <label className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded cursor-pointer">
+              Choose & Upload Audio
+              <input
+                type="file"
+                accept="audio/*"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+            </label>
+          </>
+        )}
+
+        {recording && (
           <button
             onClick={stopRecording}
             className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
@@ -128,27 +135,6 @@ const Recorder = () => {
             Stop Recording
           </button>
         )}
-
-        {/* 📁 Upload Button */}
-        <label className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded cursor-pointer">
-          Upload Audio
-          <input
-            type="file"
-            accept="audio/*"
-            onChange={handleFileChange}
-            className="hidden"
-          />
-        </label>
-
-        <button
-          onClick={handleFileUpload}
-          disabled={!selectedFile}
-          className={`${
-            selectedFile ? "bg-indigo-500 hover:bg-indigo-600" : "bg-gray-400 cursor-not-allowed"
-          } text-white px-4 py-2 rounded transition`}
-        >
-          Upload & Transcribe
-        </button>
       </div>
 
       {/* 🎵 Audio Player */}
@@ -193,7 +179,6 @@ const Recorder = () => {
                   >
                     Download as .txt
                   </button>
-
                   <button
                     onClick={downloadAsPDF}
                     className="px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100 w-full"

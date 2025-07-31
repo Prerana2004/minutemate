@@ -38,10 +38,19 @@ const upload = multer({ dest: "uploads/" });
 
 const normalizeSentence = (line) => line.replace(/\.*$/, ".");
 
+// Helper function to detect responsible person
+function extractResponsible(text, speakerName) {
+  if (/^\s*I\s+will/i.test(text)) {
+    return speakerName;
+  }
+  const match = text.match(/\b[A-Z][a-z]+\b/);
+  return match ? match[0] : "Someone";
+}
+
 // MAIN TRANSCRIBE ROUTE
 app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
   try {
-    console.log("📥 Received file:", req.file?.originalname);
+    console.log("\ud83d\udcc5 Received file:", req.file?.originalname);
 
     if (!req.file) {
       return res.status(400).json({ error: "No audio file received" });
@@ -50,7 +59,6 @@ app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
     const audioPath = req.file.path;
     const wavPath = `${audioPath}.wav`;
 
-    // Convert to WAV
     await new Promise((resolve, reject) => {
       ffmpeg(audioPath)
         .toFormat("wav")
@@ -61,7 +69,6 @@ app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
 
     const audioBuffer = fs.readFileSync(wavPath);
 
-    // Whisper API call
     const response = await axios.post(
       "https://api-inference.huggingface.co/models/openai/whisper-large-v3",
       audioBuffer,
@@ -94,10 +101,12 @@ app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
       day: "numeric", month: "long", year: "numeric",
     });
 
-    const participants = (cleaned.match(/\b(I am|My name is|This is)\s+([A-Z][a-z]+)/g) || [])
+    const participantsList = (cleaned.match(/\b(I am|My name is|This is)\s+([A-Z][a-z]+)/g) || [])
       .map((p) => p.split(" ").slice(-1)[0])
-      .filter((v, i, a) => a.indexOf(v) === i)
-      .join(", ") || "Unknown";
+      .filter((v, i, a) => a.indexOf(v) === i);
+
+    const participants = participantsList.join(", ") || "Unknown";
+    const speakerName = participantsList[0] || "Someone";
 
     const keyPoints = lines
       .filter((l) => l.length > 20 && !/welcome|hello|hi|thank/i.test(l))
@@ -113,14 +122,26 @@ app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
     const actionItems = lines
       .filter((l) => /\b(will|need to|shall|must|plan to|next step)\b/i.test(l))
       .map((l) => {
-        const person = (l.match(/\b[A-Z][a-z]+\b/) || [])[0] || "Someone";
+        const person = extractResponsible(l, speakerName);
         return `• ${normalizeSentence(l)} — Responsible: ${person}`;
       })
       .join("\n") || "No action items identified.";
 
-    const summary = `Meeting Summary\n=========================\n\nDate: ${date}\nTitle: ${meetingTitle}\nParticipants: ${participants}\n\nKey Points:\n${keyPoints}\n\nDecisions:\n${decisions}\n\nAction Items:\n${actionItems}\n`;
+    const summary = `Meeting Summary\n=========================
 
-    // Optional export (PDF/TXT)
+Date: ${date}
+Title: ${meetingTitle}
+Participants: ${participants}
+
+Key Points:
+${keyPoints}
+
+Decisions:
+${decisions}
+
+Action Items:
+${actionItems}\n`;
+
     const exportDir = path.join(__dirname, "exports");
     if (!fs.existsSync(exportDir)) fs.mkdirSync(exportDir);
 
@@ -144,7 +165,6 @@ app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
     fs.unlinkSync(audioPath);
     fs.unlinkSync(wavPath);
 
-    // ✅ Match frontend expectations: `summary` + `transcript`
     res.json({
       summary,
       transcript: cleaned,
