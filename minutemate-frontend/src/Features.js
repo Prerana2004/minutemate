@@ -16,8 +16,8 @@ const features = [
   },
   {
     icon: "📤",
-    title: "Export to Google Docs",
-    description: "Quickly send your transcript to Google Docs for sharing, editing, or collaboration.",
+    title: "Export to PDF or .txt",
+    description: "Download your transcript in pdf or .txt for sharing or editing.",
   },
   {
     icon: "🧠",
