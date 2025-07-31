@@ -146,14 +146,14 @@ const Recorder = () => {
       )}
 
       {rawTranscript && (
-        <div className="mt-6 bg-gray-100 p-4 rounded text-left shadow whitespace-pre-wrap">
+        <div className="mt-6 bg-gray-100 p-4 rounded text-left shadow whitespace-pre-wrap overflow-auto max-h-60">
           <h3 className="font-bold mb-2">🗣 Full Transcript:</h3>
           <pre className="text-gray-800 break-words">{rawTranscript}</pre>
         </div>
       )}
 
       {summary && (
-        <div className="mt-6 bg-gray-100 p-4 rounded text-left shadow whitespace-pre-wrap">
+        <div className="mt-6 bg-gray-100 p-4 rounded text-left shadow whitespace-pre-wrap overflow-auto max-h-60">
           <h3 className="font-bold mb-2">🖍 Meeting Summary:</h3>
           <pre className="text-gray-800 break-words">{summary}</pre>
 

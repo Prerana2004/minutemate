@@ -17,7 +17,7 @@ const port = 5000;
 
 const allowedOrigins = [
   "http://localhost:3000",
-  "https://minutemate-lyart.vercel.app"
+  "https://minutemate-lyart.vercel.app",
 ];
 
 app.use(cors({
@@ -38,19 +38,26 @@ const upload = multer({ dest: "uploads/" });
 
 const normalizeSentence = (line) => line.replace(/\.*$/, ".");
 
-// Helper function to detect responsible person
+// ✅ IMPROVED RESPONSIBILITY DETECTION FUNCTION
 function extractResponsible(text, speakerName) {
-  if (/^\s*I\s+will/i.test(text)) {
+  const iWillRegex = /^\s*I\s+will/i;
+  const namedPersonRegex = /\b([A-Z][a-z]+)\s+will\b/; // e.g. "Raj will"
+
+  if (iWillRegex.test(text)) {
     return speakerName;
   }
-  const match = text.match(/\b[A-Z][a-z]+\b/);
-  return match ? match[0] : "Someone";
+
+  const match = text.match(namedPersonRegex);
+  if (match) {
+    return match[1]; // Use the name detected before "will"
+  }
+
+  return "Someone";
 }
 
-// MAIN TRANSCRIBE ROUTE
 app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
   try {
-    console.log("\ud83d\udcc5 Received file:", req.file?.originalname);
+    console.log("📥 Received file:", req.file?.originalname);
 
     if (!req.file) {
       return res.status(400).json({ error: "No audio file received" });
@@ -127,7 +134,8 @@ app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
       })
       .join("\n") || "No action items identified.";
 
-    const summary = `Meeting Summary\n=========================
+    const summary = `Meeting Summary
+=========================
 
 Date: ${date}
 Title: ${meetingTitle}
@@ -140,7 +148,8 @@ Decisions:
 ${decisions}
 
 Action Items:
-${actionItems}\n`;
+${actionItems}
+`;
 
     const exportDir = path.join(__dirname, "exports");
     if (!fs.existsSync(exportDir)) fs.mkdirSync(exportDir);
@@ -154,7 +163,7 @@ ${actionItems}\n`;
     const doc = new PDFDocument();
     const writeStream = fs.createWriteStream(pdfPath);
     doc.pipe(writeStream);
-    doc.fontSize(12).text(summary, { align: 'left' });
+    doc.fontSize(12).text(summary, { align: "left" });
     doc.end();
 
     await new Promise((resolve, reject) => {
@@ -171,7 +180,9 @@ ${actionItems}\n`;
     });
   } catch (error) {
     console.error("❌ Error:", error.message);
-    if (error.response?.data) console.error("🧾 Whisper API Response:", error.response.data);
+    if (error.response?.data) {
+      console.error("🧾 Whisper API Response:", error.response.data);
+    }
     if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     if (req.file?.path && fs.existsSync(`${req.file.path}.wav`)) fs.unlinkSync(`${req.file.path}.wav`);
     res.status(500).json({ error: "Transcription failed." });
