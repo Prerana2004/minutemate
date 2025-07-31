@@ -60,8 +60,9 @@ const Recorder = () => {
         return;
       }
 
-      setSummary(data.summary || "❌ Summary not available.");
+      // Show raw transcript and summary
       setRawTranscript(data.transcript || "❌ Transcript not available.");
+      setSummary(data.summary || "❌ Summary not available.");
     } catch (error) {
       console.error("Error uploading/transcribing:", error);
       setSummary("❌ Network or server error occurred.");

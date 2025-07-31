@@ -38,12 +38,10 @@ const upload = multer({ dest: "uploads/" });
 
 const normalizeSentence = (line) => line.replace(/\.*$/, ".");
 
-// TRANSCRIBE ROUTE
+// MAIN TRANSCRIBE ROUTE
 app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
   try {
-    console.log("Request body:", req.body);
-    console.log("📥 Received file:", req.file);
-    console.log("📍 File saved at:", path.resolve(req.file.path));
+    console.log("📥 Received file:", req.file?.originalname);
 
     if (!req.file) {
       return res.status(400).json({ error: "No audio file received" });
@@ -52,6 +50,7 @@ app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
     const audioPath = req.file.path;
     const wavPath = `${audioPath}.wav`;
 
+    // Convert to WAV
     await new Promise((resolve, reject) => {
       ffmpeg(audioPath)
         .toFormat("wav")
@@ -60,11 +59,9 @@ app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
         .save(wavPath);
     });
 
-    if (!fs.existsSync(wavPath)) {
-      throw new Error("WAV conversion failed");
-    }
-
     const audioBuffer = fs.readFileSync(wavPath);
+
+    // Whisper API call
     const response = await axios.post(
       "https://api-inference.huggingface.co/models/openai/whisper-large-v3",
       audioBuffer,
@@ -79,13 +76,12 @@ app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
     );
 
     const rawTranscript = response.data.text || "";
+
     const cleaned = rawTranscript
       .replace(/\[.*?\]/g, "")
       .replace(/\b(um+|uh+|you know|like)\b/gi, "")
       .replace(/\s{2,}/g, " ")
       .trim();
-
-    console.log("Transcript:", cleaned); // ✅ Log final transcript here
 
     const lines = cleaned
       .replace(/([.?!])\s+(?=[A-Z])/g, "$1|")
@@ -122,20 +118,19 @@ app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
       })
       .join("\n") || "No action items identified.";
 
-    const summary = `📌 Meeting Summary\n=========================\n\n📅 Date: ${date}\n📝 Title: ${meetingTitle}\n👥 Participants: ${participants}\n\n🔑 Key Points:\n${keyPoints}\n\n✅ Decisions:\n${decisions}\n\n📌 Action Items:\n${actionItems}\n`;
+    const summary = `Meeting Summary\n=========================\n\nDate: ${date}\nTitle: ${meetingTitle}\nParticipants: ${participants}\n\nKey Points:\n${keyPoints}\n\nDecisions:\n${decisions}\n\nAction Items:\n${actionItems}\n`;
 
+    // Optional export (PDF/TXT)
     const exportDir = path.join(__dirname, "exports");
-    if (!fs.existsSync(exportDir)) {
-      fs.mkdirSync(exportDir, { recursive: true });
-    }
+    if (!fs.existsSync(exportDir)) fs.mkdirSync(exportDir);
 
     const fileId = `MeetingSummary_${Date.now()}`;
     const txtPath = path.join(exportDir, `${fileId}.txt`);
+    const pdfPath = path.join(exportDir, `${fileId}.pdf`);
+
     fs.writeFileSync(txtPath, summary, "utf8");
 
-    const pdfPath = path.join(exportDir, `${fileId}.pdf`);
     const doc = new PDFDocument();
-
     const writeStream = fs.createWriteStream(pdfPath);
     doc.pipe(writeStream);
     doc.fontSize(12).text(summary, { align: 'left' });
@@ -149,14 +144,13 @@ app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
     fs.unlinkSync(audioPath);
     fs.unlinkSync(wavPath);
 
+    // ✅ Match frontend expectations: `summary` + `transcript`
     res.json({
-      text: summary,
+      summary,
       transcript: cleaned,
-      txtLink: `/exports/${fileId}.txt`,
-      pdfLink: `/exports/${fileId}.pdf`,
     });
   } catch (error) {
-    console.error("❌ Processing Error:", error.message);
+    console.error("❌ Error:", error.message);
     if (error.response?.data) console.error("🧾 Whisper API Response:", error.response.data);
     if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     if (req.file?.path && fs.existsSync(`${req.file.path}.wav`)) fs.unlinkSync(`${req.file.path}.wav`);
