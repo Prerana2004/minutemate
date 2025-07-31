@@ -8,6 +8,7 @@ const Recorder = () => {
   const [rawTranscript, setRawTranscript] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
 
@@ -60,7 +61,6 @@ const Recorder = () => {
         return;
       }
 
-      // Show raw transcript and summary
       setRawTranscript(data.transcript || "❌ Transcript not available.");
       setSummary(data.summary || "❌ Summary not available.");
     } catch (error) {
@@ -68,6 +68,27 @@ const Recorder = () => {
       setSummary("❌ Network or server error occurred.");
     }
     setIsUploading(false);
+  };
+
+  const handleFileChange = (e) => {
+    setSelectedFile(e.target.files[0]);
+    setSummary("");
+    setRawTranscript("");
+    setShowDropdown(false);
+  };
+
+  const handleFileUpload = async () => {
+    if (!selectedFile) return;
+
+    const formData = new FormData();
+    formData.append("audio", selectedFile);
+
+    const blobURL = URL.createObjectURL(selectedFile);
+    setAudioURL(blobURL);
+    setSummary("Uploading file. Transcribing...");
+    setRawTranscript("");
+
+    await uploadAndTranscribe(formData);
   };
 
   const downloadAsText = () => {
@@ -105,6 +126,22 @@ const Recorder = () => {
           Stop Recording
         </button>
       )}
+
+      <div className="mt-6">
+        <input
+          type="file"
+          accept="audio/*"
+          onChange={handleFileChange}
+          className="mb-2"
+        />
+        <button
+          onClick={handleFileUpload}
+          disabled={!selectedFile}
+          className="bg-blue-500 hover:bg-blue-700 text-white px-4 py-2 rounded disabled:opacity-50"
+        >
+          Upload & Transcribe
+        </button>
+      </div>
 
       {audioURL && (
         <div className="mt-4">
