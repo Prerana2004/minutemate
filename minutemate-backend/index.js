@@ -26,7 +26,6 @@ app.use(cors({
   credentials: true,
 }));
 
-
 app.use(express.json());
 app.use("/exports", express.static(path.join(__dirname, "exports")));
 
@@ -34,21 +33,14 @@ const upload = multer({ dest: "uploads/" });
 
 const normalizeSentence = (line) => line.replace(/\.*$/, ".");
 
-// ✅ IMPROVED RESPONSIBILITY DETECTION FUNCTION
 function extractResponsible(text, speakerName) {
   const iWillRegex = /^\s*I\s+will/i;
-  const namedPersonRegex = /\b([A-Z][a-z]+)\s+will\b/; // e.g. "Raj will"
+  const namedPersonRegex = /\b([A-Z][a-z]+)\s+will\b/;
 
-  if (iWillRegex.test(text)) {
-    return speakerName;
-  }
+  if (iWillRegex.test(text)) return speakerName;
 
   const match = text.match(namedPersonRegex);
-  if (match) {
-    return match[1]; // Use the name detected before "will"
-  }
-
-  return "Someone";
+  return match ? match[1] : "Someone";
 }
 
 app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
@@ -62,6 +54,7 @@ app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
     const audioPath = req.file.path;
     const wavPath = `${audioPath}.wav`;
 
+    // Convert to WAV using ffmpeg
     await new Promise((resolve, reject) => {
       ffmpeg(audioPath)
         .toFormat("wav")
@@ -72,8 +65,9 @@ app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
 
     const audioBuffer = fs.readFileSync(wavPath);
 
+    // Send to Hugging Face Whisper API
     const response = await axios.post(
-      "https://api-inference.huggingface.co/models/openai/whisper-small",
+      "https://api-inference.huggingface.co/models/openai/whisper-large-v3",
       audioBuffer,
       {
         headers: {
@@ -87,6 +81,7 @@ app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
 
     const rawTranscript = response.data.text || "";
 
+    // Clean transcript
     const cleaned = rawTranscript
       .replace(/\[.*?\]/g, "")
       .replace(/\b(um+|uh+|you know|like)\b/gi, "")
@@ -147,6 +142,7 @@ Action Items:
 ${actionItems}
 `;
 
+    // Save to disk
     const exportDir = path.join(__dirname, "exports");
     if (!fs.existsSync(exportDir)) fs.mkdirSync(exportDir);
 
@@ -167,6 +163,7 @@ ${actionItems}
       writeStream.on("error", reject);
     });
 
+    // Clean up
     fs.unlinkSync(audioPath);
     fs.unlinkSync(wavPath);
 
@@ -176,12 +173,19 @@ ${actionItems}
     });
   } catch (error) {
     console.error("❌ Error:", error.message);
+
     if (error.response?.data) {
       console.error("🧾 Whisper API Response:", error.response.data);
+      return res.status(error.response.status || 500).json({
+        error: error.response.data,
+        message: "Whisper API failed.",
+      });
     }
+
     if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     if (req.file?.path && fs.existsSync(`${req.file.path}.wav`)) fs.unlinkSync(`${req.file.path}.wav`);
-    res.status(500).json({ error: "Transcription failed." });
+
+    res.status(500).json({ error: "Transcription failed. See server logs." });
   }
 });
 
