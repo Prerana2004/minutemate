@@ -21,15 +21,11 @@ const allowedOrigins = [
 ];
 
 app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
+  origin: allowedOrigins,
   methods: ["GET", "POST"],
+  credentials: true,
 }));
+
 
 app.use(express.json());
 app.use("/exports", express.static(path.join(__dirname, "exports")));
@@ -77,7 +73,7 @@ app.post("/transcribe-clean", upload.single("audio"), async (req, res) => {
     const audioBuffer = fs.readFileSync(wavPath);
 
     const response = await axios.post(
-      "https://api-inference.huggingface.co/models/openai/whisper-large-v3",
+      "https://api-inference.huggingface.co/models/openai/whisper-small",
       audioBuffer,
       {
         headers: {
